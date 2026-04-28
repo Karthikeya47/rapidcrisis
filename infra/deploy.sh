@@ -1,13 +1,13 @@
 #!/bin/bash
 # ============================================================
 # deploy.sh — Deploy Rapid Crisis Response backend to Cloud Run
-# Project: project-e82fa8f3-3868-42a9-a35
+# Project: serene-bastion-494715-f2
 # Region:  us-central1
 # ============================================================
 
 set -euo pipefail
 
-PROJECT_ID="project-e82fa8f3-3868-42a9-a35"
+PROJECT_ID="serene-bastion-494715-f2"
 REGION="us-central1"
 SERVICE_NAME="crisis-agent"
 IMAGE="gcr.io/$PROJECT_ID/$SERVICE_NAME"
