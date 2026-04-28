@@ -1,9 +1,7 @@
-/// crisis_screen.dart — Main crisis coordination screen
-/// Press-to-talk → transcript → pipeline animation → dispatch card
+/// crisis_screen.dart — Optimized for v2 Streaming + Agentic Backend
 library;
 
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../models/crisis_request.dart';
@@ -20,35 +18,26 @@ class CrisisScreen extends StatefulWidget {
   State<CrisisScreen> createState() => _CrisisScreenState();
 }
 
-class _CrisisScreenState extends State<CrisisScreen>
-    with TickerProviderStateMixin {
-  // Services
+class _CrisisScreenState extends State<CrisisScreen> with TickerProviderStateMixin {
   final _stt = SttService();
   final _agent = CrisisAgentService();
 
-  // State
   PipelineStep _step = PipelineStep.idle;
   String _transcript = '';
-  String _statusMessage = 'Hold the button to speak a crisis command';
+  String _statusMessage = 'Hold to activate Crisis Pipeline';
   CrisisResponse? _lastResponse;
   String? _errorMessage;
   bool _isBackendOnline = false;
 
-  // Animation controllers
   late AnimationController _pulseController;
-  late AnimationController _waveController;
 
   @override
   void initState() {
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
-    _waveController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
     _checkBackend();
   }
 
@@ -60,91 +49,51 @@ class _CrisisScreenState extends State<CrisisScreen>
   @override
   void dispose() {
     _pulseController.dispose();
-    _waveController.dispose();
     _stt.dispose();
     _agent.dispose();
     super.dispose();
   }
 
-  // ── Crisis Pipeline ──────────────────────────────────────────
   Future<void> _startCrisisPipeline() async {
-    if (_step != PipelineStep.idle && _step != PipelineStep.done && _step != PipelineStep.error) {
-      return;
-    }
+    if (_step != PipelineStep.idle && _step != PipelineStep.done && _step != PipelineStep.error) return;
 
     setState(() {
       _step = PipelineStep.recording;
       _transcript = '';
       _lastResponse = null;
       _errorMessage = null;
-      _statusMessage = 'Listening for crisis command...';
+      _statusMessage = 'Listening...';
     });
-    _waveController.repeat();
 
     try {
-      // Step 1: Record + transcribe
+      // Step 1: STT v2 Streaming
       final result = await _stt.recordAndTranscribe(
         durationSeconds: 5,
         onInterim: (partial) {
-          if (mounted) setState(() => _statusMessage = partial);
+          if (mounted) setState(() => _transcript = partial);
         },
       );
 
+      // Step 2-5: Multi-pass Backend (Agentic Flow)
       setState(() {
         _transcript = result.text;
-        _step = PipelineStep.transcribing;
-        _statusMessage = 'Transcript captured${result.isMock ? ' (demo)' : ''}';
-      });
-      _waveController.stop();
-      _waveController.reset();
-
-      await Future.delayed(const Duration(milliseconds: 600));
-
-      // Step 2: Gemini thinking
-      setState(() {
         _step = PipelineStep.thinking;
-        _statusMessage = 'Gemini 1.5 Flash analyzing crisis...';
+        _statusMessage = 'Agentic Pipeline active...';
       });
 
-      await Future.delayed(const Duration(milliseconds: 400));
-
-      // Steps 3-4: Protocol + staff (handled in backend)
-      setState(() {
-        _step = PipelineStep.findingProtocol;
-        _statusMessage = 'Fetching crisis protocol from Vertex AI...';
-      });
-
-      await Future.delayed(const Duration(milliseconds: 300));
-
-      setState(() {
-        _step = PipelineStep.findingStaff;
-        _statusMessage = 'Querying on-shift staff from BigQuery...';
-      });
-
-      // Step 5: Submit to backend (orchestrates everything)
-      final response = await _agent.submitCrisis(
-        CrisisRequest(transcript: _transcript),
-      );
-
-      setState(() {
-        _step = PipelineStep.dispatching;
-        _statusMessage = 'Dispatching FCM alerts to ${response.staffDispatched.length} staff...';
-      });
-
-      await Future.delayed(const Duration(milliseconds: 500));
+      final response = await _agent.submitCrisis(CrisisRequest(transcript: _transcript));
 
       setState(() {
         _step = PipelineStep.done;
         _lastResponse = response;
-        _statusMessage = '✓ ${response.staffDispatched.length} staff alerted in ${response.responseMs}ms';
+        _statusMessage = 'Dispatch Complete';
       });
     } catch (e) {
       setState(() {
         _step = PipelineStep.error;
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _errorMessage = e.toString();
         _statusMessage = 'Pipeline failed';
       });
-      _waveController.stop();
     }
   }
 
@@ -152,140 +101,84 @@ class _CrisisScreenState extends State<CrisisScreen>
     setState(() {
       _step = PipelineStep.idle;
       _transcript = '';
-      _statusMessage = 'Hold the button to speak a crisis command';
+      _statusMessage = 'Hold to activate Crisis Pipeline';
       _lastResponse = null;
       _errorMessage = null;
     });
   }
 
-  // ── Build ────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: _buildAppBar(),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Status bar
-            _BackendStatusBar(isOnline: _isBackendOnline),
-
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Transcript display
-                    if (_transcript.isNotEmpty)
-                      _TranscriptCard(text: _transcript),
-
-                    if (_transcript.isNotEmpty) const SizedBox(height: 16),
-
-                    // Pipeline status
-                    if (_step != PipelineStep.idle)
-                      PipelineStatusWidget(currentStep: _step),
-
-                    if (_step != PipelineStep.idle) const SizedBox(height: 16),
-
-                    // Error
-                    if (_errorMessage != null) _ErrorCard(message: _errorMessage!),
-
-                    // Dispatch result
-                    if (_lastResponse != null)
-                      DispatchResultCard(response: _lastResponse!),
-
-                    // Idle state hint cards
-                    if (_step == PipelineStep.idle && _lastResponse == null)
-                      _IdleHintPanel(),
-
-                    const SizedBox(height: 120), // space for FAB
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+      appBar: AppBar(
+        title: Text('RAPID CRISIS', style: AppTextStyles.heading.copyWith(letterSpacing: 1.5)),
+        actions: [
+          IconButton(onPressed: _checkBackend, icon: const Icon(Icons.hub_outlined, size: 20)),
+          const SizedBox(width: 8),
+        ],
       ),
-      bottomNavigationBar: _BottomControls(
-        step: _step,
-        statusMessage: _statusMessage,
-        pulseController: _pulseController,
-        waveController: _waveController,
-        onTap: _startCrisisPipeline,
-        onReset: _reset,
-      ),
-    );
-  }
-
-  AppBar _buildAppBar() {
-    return AppBar(
-      backgroundColor: AppColors.bg,
-      title: Row(
+      body: Stack(
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: AppColors.critical,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(color: AppColors.critical.withOpacity(0.5), blurRadius: 6),
+          // Background Glow
+          Positioned(
+            top: -100,
+            right: -100,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _step == PipelineStep.recording ? AppColors.critical.withOpacity(0.05) : AppColors.accent.withOpacity(0.05),
+              ),
+            ).animate(onPlay: (c) => c.repeat()).blur(begin: const Offset(80, 80), end: const Offset(120, 120), duration: 4.seconds),
+          ),
+
+          SafeArea(
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.all(20),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      if (_transcript.isNotEmpty || _step == PipelineStep.recording)
+                        _TranscriptPanel(text: _transcript, isRecording: _step == PipelineStep.recording),
+
+                      const SizedBox(height: 24),
+
+                      if (_step != PipelineStep.idle)
+                        PipelineStatusWidget(currentStep: _step).animate().fadeIn().slideY(begin: 0.1, end: 0),
+
+                      if (_lastResponse != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 24),
+                          child: DispatchResultCard(response: _lastResponse!).animate().scale(delay: 200.ms),
+                        ),
+
+                      if (_errorMessage != null)
+                        _ErrorPanel(message: _errorMessage!),
+
+                      if (_step == PipelineStep.idle && _lastResponse == null)
+                        _OnboardingPanel(),
+
+                      const SizedBox(height: 140),
+                    ]),
+                  ),
+                ),
               ],
             ),
-          )
-              .animate()
-              .fadeIn()
-              .then()
-              .fadeOut(duration: 800.ms)
-              .then()
-              .fadeIn(duration: 800.ms),
-          const SizedBox(width: 10),
-          Text('Crisis Response', style: AppTextStyles.heading),
-        ],
-      ),
-      actions: [
-        IconButton(
-          onPressed: _checkBackend,
-          icon: const Icon(Icons.refresh_rounded, size: 20),
-          tooltip: 'Check backend',
-        ),
-        const SizedBox(width: 8),
-      ],
-    );
-  }
-}
-
-// ── Sub-widgets ────────────────────────────────────────────────
-
-class _BackendStatusBar extends StatelessWidget {
-  final bool isOnline;
-  const _BackendStatusBar({required this.isOnline});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      height: 32,
-      color: isOnline
-          ? AppColors.accentGreen.withOpacity(0.08)
-          : AppColors.critical.withOpacity(0.08),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: isOnline ? AppColors.accentGreen : AppColors.critical,
-              shape: BoxShape.circle,
-            ),
           ),
-          const SizedBox(width: 6),
-          Text(
-            isOnline ? 'Backend online' : 'Backend offline — running in mock mode',
-            style: AppTextStyles.caption.copyWith(
-              color: isOnline ? AppColors.accentGreen : AppColors.critical,
+
+          // Floating Action Area
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: _MainActionTray(
+              step: _step,
+              status: _statusMessage,
+              onTap: _startCrisisPipeline,
+              onReset: _reset,
+              pulse: _pulseController,
             ),
           ),
         ],
@@ -294,64 +187,40 @@ class _BackendStatusBar extends StatelessWidget {
   }
 }
 
-class _TranscriptCard extends StatelessWidget {
+class _TranscriptPanel extends StatelessWidget {
   final String text;
-  const _TranscriptCard({required this.text});
+  final bool isRecording;
+  const _TranscriptPanel({required this.text, required this.isRecording});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isRecording ? AppColors.critical.withOpacity(0.3) : AppColors.border),
+        boxShadow: [
+          if (isRecording) BoxShadow(color: AppColors.critical.withOpacity(0.1), blurRadius: 20, spreadRadius: 2),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.mic, size: 14, color: AppColors.accent),
-              const SizedBox(width: 6),
-              Text('TRANSCRIPT', style: AppTextStyles.label.copyWith(color: AppColors.accent)),
+              Icon(isRecording ? Icons.fiber_manual_record : Icons.notes, size: 14, color: isRecording ? AppColors.critical : AppColors.accent),
+              const SizedBox(width: 8),
+              Text(isRecording ? 'LIVE TRANSCRIPT' : 'REQUEST', style: AppTextStyles.label.copyWith(color: isRecording ? AppColors.critical : AppColors.accent)),
+              const Spacer(),
+              if (isRecording)
+                const Text('v2 STREAMING', style: TextStyle(fontSize: 8, color: AppColors.textMuted, fontWeight: FontWeight.bold)),
             ],
           ),
-          const SizedBox(height: 8),
-          Text('"$text"',
-              style: AppTextStyles.body.copyWith(
-                  fontStyle: FontStyle.italic, fontSize: 15)),
-        ],
-      ),
-    )
-        .animate()
-        .fadeIn(duration: 300.ms)
-        .slideY(begin: -0.05, end: 0);
-  }
-}
-
-class _ErrorCard extends StatelessWidget {
-  final String message;
-  const _ErrorCard({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: AppColors.criticalDim,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.critical.withOpacity(0.4)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline, color: AppColors.critical, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(message,
-                style: AppTextStyles.body.copyWith(color: AppColors.critical)),
+          const SizedBox(height: 12),
+          Text(
+            text.isEmpty ? (isRecording ? "Listening..." : "...") : text,
+            style: AppTextStyles.displayLarge.copyWith(fontSize: 22, height: 1.3),
           ),
         ],
       ),
@@ -359,290 +228,106 @@ class _ErrorCard extends StatelessWidget {
   }
 }
 
-class _IdleHintPanel extends StatelessWidget {
+class _OnboardingPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final hints = [
-      (Icons.mic_rounded, 'Speak', 'Say a crisis command like "2 trauma surgeons, Bay 4"'),
-      (Icons.bolt_rounded, 'Instant', 'Gemini extracts crisis type, location, and staff needed'),
-      (Icons.people_rounded, 'Match', 'On-shift staff queried from BigQuery in real time'),
-      (Icons.notifications_active_rounded, 'Alert', 'FCM push sent directly to matched staff phones'),
-    ];
-
     return Column(
       children: [
-        const SizedBox(height: 24),
-        Text('HOW IT WORKS', style: AppTextStyles.label),
+        const SizedBox(height: 40),
+        Icon(Icons.emergency_outlined, size: 64, color: AppColors.textMuted.withOpacity(0.2)),
         const SizedBox(height: 16),
-        ...hints.asMap().entries.map((e) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _HintTile(
-                icon: e.value.$1,
-                title: e.value.$2,
-                subtitle: e.value.$3,
-                delay: e.key * 80,
-              ),
-            )),
+        Text('Ready for Dispatch', style: AppTextStyles.heading.copyWith(color: AppColors.textMuted)),
+        const SizedBox(height: 8),
+        Text('Hold the button below to initiate emergency protocols', style: AppTextStyles.body.copyWith(color: AppColors.textMuted), textAlign: TextAlign.center),
       ],
+    ).animate().fadeIn(delay: 300.ms);
+  }
+}
+
+class _ErrorPanel extends StatelessWidget {
+  final String message;
+  const _ErrorPanel({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: AppColors.critical.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.critical.withOpacity(0.2))),
+      child: Text(message, style: AppTextStyles.body.copyWith(color: AppColors.critical)),
     );
   }
 }
 
-class _HintTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final int delay;
-
-  const _HintTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.delay,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.accentDim,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: AppColors.accent, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
-                Text(subtitle, style: AppTextStyles.caption),
-              ],
-            ),
-          ),
-        ],
-      ),
-    )
-        .animate(delay: Duration(milliseconds: delay))
-        .fadeIn(duration: 400.ms)
-        .slideX(begin: 0.04, end: 0);
-  }
-}
-
-class _BottomControls extends StatelessWidget {
+class _MainActionTray extends StatelessWidget {
   final PipelineStep step;
-  final String statusMessage;
-  final AnimationController pulseController;
-  final AnimationController waveController;
+  final String status;
   final VoidCallback onTap;
   final VoidCallback onReset;
+  final AnimationController pulse;
 
-  const _BottomControls({
-    required this.step,
-    required this.statusMessage,
-    required this.pulseController,
-    required this.waveController,
-    required this.onTap,
-    required this.onReset,
-  });
+  const _MainActionTray({required this.step, required this.status, required this.onTap, required this.onReset, required this.pulse});
 
   @override
   Widget build(BuildContext context) {
-    final isIdle = step == PipelineStep.idle ||
-        step == PipelineStep.done ||
-        step == PipelineStep.error;
     final isRecording = step == PipelineStep.recording;
-    final isProcessing = !isIdle && !isRecording;
+    final isIdle = step == PipelineStep.idle || step == PipelineStep.done || step == PipelineStep.error;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border)),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [AppColors.bg.withOpacity(0), AppColors.bg, AppColors.bg],
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Status message
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: Text(
-              statusMessage,
-              key: ValueKey(statusMessage),
-              style: AppTextStyles.caption,
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Action buttons
+          Text(status.toUpperCase(), style: AppTextStyles.label.copyWith(color: isRecording ? AppColors.critical : AppColors.textMuted)),
+          const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (step == PipelineStep.done || step == PipelineStep.error)
-                Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: GestureDetector(
-                    onTap: onReset,
-                    child: Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceElevated,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.border, width: 1.5),
-                      ),
-                      child: const Icon(Icons.refresh_rounded,
-                          color: AppColors.textSecondary, size: 22),
-                    ),
-                  ),
-                ),
-              // Main record button
-              _RecordButton(
-                step: step,
-                pulseController: pulseController,
-                waveController: waveController,
+                IconButton(onPressed: onReset, icon: const Icon(Icons.refresh, color: AppColors.textMuted)).animate().scale(),
+
+              const SizedBox(width: 16),
+
+              GestureDetector(
                 onTap: isIdle ? onTap : null,
+                child: AnimatedBuilder(
+                  animation: pulse,
+                  builder: (context, child) {
+                    return Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isRecording ? AppColors.critical : AppColors.accent,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isRecording ? AppColors.critical : AppColors.accent).withOpacity(0.4 * (1 - pulse.value)),
+                            blurRadius: 20 * pulse.value,
+                            spreadRadius: 10 * pulse.value,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        isRecording ? Icons.mic : (step == PipelineStep.done ? Icons.check : Icons.mic_none),
+                        color: Colors.black,
+                        size: 32,
+                      ),
+                    );
+                  },
+                ),
               ),
+
+              const SizedBox(width: 68), // Spacer to balance reset button
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _RecordButton extends StatelessWidget {
-  final PipelineStep step;
-  final AnimationController pulseController;
-  final AnimationController waveController;
-  final VoidCallback? onTap;
-
-  const _RecordButton({
-    required this.step,
-    required this.pulseController,
-    required this.waveController,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isRecording = step == PipelineStep.recording;
-    final isDone = step == PipelineStep.done;
-    final isProcessing = !isRecording && !isDone &&
-        step != PipelineStep.idle && step != PipelineStep.error;
-
-    final color = isDone
-        ? AppColors.accentGreen
-        : isRecording
-            ? AppColors.critical
-            : AppColors.accent;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedBuilder(
-        animation: pulseController,
-        builder: (context, child) {
-          final pulse = isRecording
-              ? 1.0 + (pulseController.value * 0.15)
-              : 1.0;
-
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              // Outer glow ring
-              if (isRecording)
-                Container(
-                  width: 88 * pulse,
-                  height: 88 * pulse,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: color.withOpacity(0.3 * (1 - pulseController.value)),
-                      width: 2,
-                    ),
-                  ),
-                ),
-              // Button
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color.withOpacity(0.15),
-                  border: Border.all(color: color, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withOpacity(0.3),
-                      blurRadius: 20,
-                      spreadRadius: isRecording ? 4 : 0,
-                    ),
-                  ],
-                ),
-                child: isProcessing
-                    ? const _SpinnerIcon()
-                    : Icon(
-                        isDone
-                            ? Icons.check_rounded
-                            : isRecording
-                                ? Icons.stop_rounded
-                                : Icons.mic_rounded,
-                        color: color,
-                        size: 30,
-                      ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SpinnerIcon extends StatefulWidget {
-  const _SpinnerIcon();
-
-  @override
-  State<_SpinnerIcon> createState() => _SpinnerIconState();
-}
-
-class _SpinnerIconState extends State<_SpinnerIcon>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) => Transform.rotate(
-        angle: _ctrl.value * 2 * math.pi,
-        child: const Icon(Icons.autorenew_rounded,
-            color: AppColors.accent, size: 28),
       ),
     );
   }

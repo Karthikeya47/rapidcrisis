@@ -1,20 +1,13 @@
-/// stt_service.dart — Cloud Speech-to-Text v2 streaming via HTTP REST
-/// Falls back to local mock transcription when credentials are absent.
+/// stt_service.dart — Cloud Speech-to-Text v2 STREAMING implementation
+/// Streams audio chunks directly to Google Cloud for near-zero latency.
 library;
 
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:google_speech/google_speech.dart';
 import 'package:record/record.dart';
-import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 
-const _sttEndpoint =
-    'https://speech.googleapis.com/v1/speech:recognize';
-
-/// Simplified transcription result
 class TranscriptResult {
   final String text;
   final double confidence;
@@ -30,121 +23,118 @@ class TranscriptResult {
 class SttService {
   final AudioRecorder _recorder = AudioRecorder();
   final String? _apiKey;
+  StreamSubscription<List<int>>? _audioStreamSubscription;
 
   SttService({String? apiKey}) : _apiKey = apiKey;
 
-  /// Request microphone permission
   Future<bool> requestPermission() async {
     final status = await Permission.microphone.request();
     return status.isGranted;
   }
 
-  /// Record audio for [durationSeconds] then transcribe via Cloud STT.
-  /// Streams interim text via [onInterim] and returns final transcript.
+  /// Streams audio to Cloud STT v2 and provides real-time transcript updates.
   Future<TranscriptResult> recordAndTranscribe({
     int durationSeconds = 6,
     void Function(String partial)? onInterim,
   }) async {
-    final hasPermission = await requestPermission();
-    if (!hasPermission) {
-      throw Exception('Microphone permission denied');
+    if (_apiKey == null || _apiKey!.isEmpty) {
+      return _mockStreaming(durationSeconds, onInterim);
     }
 
-    // Simulate interim updates while recording
-    int elapsed = 0;
-    final interimTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      elapsed++;
-      onInterim?.call('Recording... ($elapsed/$durationSeconds s)');
-    });
+    final hasPermission = await requestPermission();
+    if (!hasPermission) throw Exception('Microphone permission denied');
 
-    // Record to temp file
-    final tempPath = '${Directory.systemTemp.path}/crisis_audio.wav';
-    await _recorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.wav,
-        sampleRate: 16000,
-        numChannels: 1,
-        bitRate: 128000,
-      ),
-      path: tempPath,
+    final serviceAccount = ServiceAccount.fromApiKey(_apiKey!);
+    final speechToText = SpeechToText.viaServiceAccount(serviceAccount);
+
+    final config = RecognitionConfig(
+      encoding: AudioEncoding.LINEAR16,
+      model: RecognitionModel.latest_short,
+      enableAutomaticPunctuation: true,
+      sampleRateHertz: 16000,
+      languageCode: 'en-US',
     );
 
-    await Future.delayed(Duration(seconds: durationSeconds));
-    interimTimer.cancel();
+    final streamingConfig = StreamingRecognitionConfig(
+      config: config,
+      interimResults: true,
+    );
 
-    final recordingPath = await _recorder.stop();
-    if (recordingPath == null) {
-      throw Exception('Recording failed — no audio captured');
-    }
+    final audioStream = await _recorder.startStream(
+      const RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: 16000,
+        numChannels: 1,
+      ),
+    );
 
-    onInterim?.call('Transcribing...');
+    final responseStream = speechToText.streamingRecognize(
+      streamingConfig,
+      audioStream.map((data) => data as List<int>),
+    );
 
-    final audioBytes = await File(recordingPath).readAsBytes();
-    return _transcribeAudio(audioBytes);
-  }
+    String finalTranscript = '';
+    final completer = Completer<TranscriptResult>();
 
-  Future<TranscriptResult> _transcribeAudio(Uint8List audioBytes) async {
-    if (_apiKey == null || _apiKey!.isEmpty) {
-      debugPrint('[STT] No API key — using mock transcript');
-      return _mockTranscript();
-    }
-
-    try {
-      final body = jsonEncode({
-        'config': {
-          'encoding': 'LINEAR16',
-          'sampleRateHertz': 16000,
-          'languageCode': 'en-US',
-          'model': 'latest_short',
-          'useEnhanced': true,
-          'enableAutomaticPunctuation': true,
-        },
-        'audio': {
-          'content': base64Encode(audioBytes),
-        },
-      });
-
-      final response = await http.post(
-        Uri.parse('$_sttEndpoint?key=$_apiKey'),
-        headers: {'Content-Type': 'application/json'},
-        body: body,
-      );
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final results = json['results'] as List<dynamic>?;
-        if (results != null && results.isNotEmpty) {
-          final alt = (results[0] as Map)['alternatives'] as List;
-          final transcript = alt[0]['transcript'] as String;
-          final confidence = (alt[0]['confidence'] as num?)?.toDouble() ?? 0.9;
-          return TranscriptResult(text: transcript, confidence: confidence);
+    responseStream.listen((data) {
+      for (var result in data.results) {
+        final transcript = result.alternatives.first.transcript;
+        if (result.isFinal) {
+          finalTranscript = transcript;
+          onInterim?.call(finalTranscript);
+        } else {
+          onInterim?.call('$finalTranscript $transcript'.strip());
         }
       }
-      debugPrint('[STT] API error ${response.statusCode}: ${response.body}');
-      return _mockTranscript();
-    } catch (e) {
-      debugPrint('[STT] Exception: $e');
-      return _mockTranscript();
+    }, onDone: () {
+      if (!completer.isCompleted) {
+        completer.complete(TranscriptResult(text: finalTranscript, confidence: 0.9));
+      }
+    }, onError: (e) {
+      debugPrint('[STT] Stream Error: $e');
+      if (!completer.isCompleted) completer.complete(_mockTranscript());
+    });
+
+    // Stop recording after duration
+    Future.delayed(Duration(seconds: durationSeconds), () async {
+      await _recorder.stop();
+      if (!completer.isCompleted) {
+        completer.complete(TranscriptResult(text: finalTranscript, confidence: 0.9));
+      }
+    });
+
+    return completer.future;
+  }
+
+  Future<TranscriptResult> _mockStreaming(int duration, Function(String)? onInterim) async {
+    final mock = _mockTranscript();
+    final words = mock.text.split(' ');
+    for (int i = 0; i < words.length; i++) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      onInterim?.call(words.sublist(0, i + 1).join(' '));
     }
+    return mock;
   }
 
   TranscriptResult _mockTranscript() {
-    // Rotate through realistic mock transcripts for demo
     final samples = [
       'Need two trauma surgeons stat, Bay 4, patient is coding',
       'Code blue in ICU Room 7, cardiac arrest, need cardiologist now',
       'Three nurses to floor 5, mass casualty incoming',
-      'Respiratory distress in pediatric ward, need ICU doctor immediately',
     ];
-    final idx = DateTime.now().second % samples.length;
     return TranscriptResult(
-      text: samples[idx],
+      text: samples[DateTime.now().second % samples.length],
       confidence: 0.95,
       isMock: true,
     );
   }
 
   void dispose() {
+    _audioStreamSubscription?.cancel();
     _recorder.dispose();
   }
+}
+
+extension StringExtension on String {
+  String strip() => trim();
 }

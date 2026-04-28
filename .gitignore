@@ -1,3 +1,10 @@
 .idea/
 .agent/
 *-backup.*
+__pycache__/
+*.pyc
+.env
+.dart_tool/
+.packages
+.pub/
+build/

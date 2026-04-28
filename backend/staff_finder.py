@@ -50,13 +50,30 @@ class StaffMember:
 def find_available_staff(staff_type: str, count: int) -> list[StaffMember]:
     """
     Find on-shift staff matching the required role.
-    Tries BigQuery first; falls back to mock data.
+    Cascade order: Cloud SQL → BigQuery → Mock data.
+    Cloud SQL = real-time transactional (shift check-ins).
+    BigQuery  = analytics-grade scheduled queries.
+    Mock      = local dev without any GCP credentials.
     """
+    # ── Try Cloud SQL first (real-time staff availability) ────
+    try:
+        from cloud_sql_staff import find_staff_cloudsql, is_cloudsql_configured
+        if is_cloudsql_configured():
+            staff = find_staff_cloudsql(staff_type, count)
+            if staff:
+                logger.info(f"Staff sourced from Cloud SQL: {[s.name for s in staff]}")
+                return staff
+    except Exception as e:
+        logger.warning(f"Cloud SQL unavailable: {e}")
+
+    # ── Try BigQuery second ──────────────────────────────────
     try:
         return _bigquery_find(staff_type, count)
     except Exception as e:
         logger.warning(f"BigQuery unavailable, using mock staff: {e}")
-        return _mock_find(staff_type, count)
+
+    # ── Fallback to mock data ────────────────────────────────
+    return _mock_find(staff_type, count)
 
 
 def _bigquery_find(staff_type: str, count: int) -> list[StaffMember]:
