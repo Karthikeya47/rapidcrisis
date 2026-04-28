@@ -10,7 +10,7 @@ import '../models/crisis_request.dart';
 /// gcloud run deploy crisis-agent → get the URL
 const _backendBaseUrl = String.fromEnvironment(
   'BACKEND_URL',
-  defaultValue: 'http://10.0.2.2:8080', // Android emulator → localhost
+  defaultValue: 'https://crisis-agent-1051430206062.asia-south1.run.app', // Cloud Run backend
 );
 
 class CrisisAgentService {
