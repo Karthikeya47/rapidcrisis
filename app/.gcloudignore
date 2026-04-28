@@ -1,0 +1,14 @@
+.gcloudignore
+.git
+.gitignore
+.dart_tool/
+.pub/
+.idea/
+android/
+ios/
+linux/
+macos/
+windows/
+test/
+# Ensure build/web is UPLOADED
+!build/web

@@ -23,7 +23,7 @@ dependencies:
   permission_handler: ^11.3.1
   
   # Google Cloud Speech-to-Text v2
-  google_speech: ^3.1.1
+  google_speech: 5.3.0
 
   # UI
   google_fonts: ^6.2.1

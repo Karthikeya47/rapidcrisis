@@ -19,7 +19,7 @@ class CrisisScreen extends StatefulWidget {
 }
 
 class _CrisisScreenState extends State<CrisisScreen> with TickerProviderStateMixin {
-  final _stt = SttService();
+  final _stt = SttService(apiKey: '***REMOVED***');
   final _agent = CrisisAgentService();
 
   PipelineStep _step = PipelineStep.idle;
