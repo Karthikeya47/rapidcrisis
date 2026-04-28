@@ -9,7 +9,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-GCP_PROJECT = os.getenv("GCP_PROJECT", "project-e82fa8f3-3868-42a9-a35")
+GCP_PROJECT = os.getenv("GCP_PROJECT", "serene-bastion-494715-f2")
 GCP_REGION = os.getenv("GCP_REGION", "us-central1")
 VERTEX_INDEX_ENDPOINT = os.getenv("VERTEX_INDEX_ENDPOINT", "")
 VERTEX_DEPLOYED_INDEX_ID = os.getenv("VERTEX_DEPLOYED_INDEX_ID", "")
