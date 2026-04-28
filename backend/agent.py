@@ -60,6 +60,25 @@ class CrisisContext:
     protocol: Any
     staff_list: list
 
+@dataclass
+class CrisisIntent:
+    crisis_type: str
+    location: str
+    staff_type: str
+    count: int
+    urgency: str
+    summary: str
+
+    def to_dict(self) -> dict:
+        return {
+            "crisis_type": self.crisis_type,
+            "location": self.location,
+            "staff_type": self.staff_type,
+            "count": self.count,
+            "urgency": self.urgency,
+            "summary": self.summary,
+        }
+
 def _parse_json(text: str) -> dict:
     text = re.sub(r"^```(?:json)?\n?", "", text.strip())
     text = re.sub(r"\n?```$", "", text)
@@ -128,9 +147,56 @@ def run_crisis_agent(transcript: str, location_hint: str = None) -> CrisisContex
         logger.error(f"Agent Pipeline Error: {e}")
         return _mock_agent_fallback(transcript, location_hint)
 
+def parse_crisis_intent(transcript: str) -> CrisisIntent:
+    """Compatibility wrapper for tests: Extract intent without running full pipeline."""
+    return _mock_parse(transcript)
+
+def _mock_parse(transcript: str) -> CrisisIntent:
+    """Rule-based fallback when Gemini is unavailable."""
+    t = transcript.lower()
+    crisis_type = "unknown"
+    staff_type = "general_doctor"
+    urgency = "high"
+    count = 1
+
+    if "trauma" in t:
+        crisis_type = "trauma"
+        staff_type = "trauma_surgeon"
+        urgency = "critical"
+    elif "cardiac" in t or "heart" in t or "code blue" in t:
+        crisis_type = "cardiac_arrest"
+        staff_type = "cardiologist"
+        urgency = "critical"
+    elif "fire" in t:
+        crisis_type = "fire"
+        staff_type = "paramedic"
+        urgency = "critical"
+    elif "respiratory" in t or "breathing" in t:
+        crisis_type = "respiratory"
+        staff_type = "icu_doctor"
+        urgency = "high"
+    elif "nurse" in t:
+        staff_type = "nurse"
+    elif "anesthes" in t:
+        staff_type = "anesthesiologist"
+
+    # Extract count hints
+    for word, num in [("two", 2), ("three", 3), ("four", 4), ("five", 5), ("2", 2), ("3", 3)]:
+        if word in t:
+            count = num
+            break
+
+    return CrisisIntent(
+        crisis_type=crisis_type,
+        location="unknown",
+        staff_type=staff_type,
+        count=count,
+        urgency=urgency,
+        summary=f"[Mock] Crisis detected: {crisis_type} — {staff_type} x{count}",
+    )
+
 def _mock_agent_fallback(transcript: str, location_hint: str) -> CrisisContext:
     # Basic logic for when Gemini/Network is down
-    from agent import _mock_parse  # Reuse the old mock parser
     intent = _mock_parse(transcript)
     if location_hint and intent.location == "unknown":
         intent.location = location_hint

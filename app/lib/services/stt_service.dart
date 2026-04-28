@@ -44,8 +44,7 @@ class SttService {
     final hasPermission = await requestPermission();
     if (!hasPermission) throw Exception('Microphone permission denied');
 
-    final serviceAccount = ServiceAccount.fromApiKey(_apiKey!);
-    final speechToText = SpeechToText.viaServiceAccount(serviceAccount);
+    final speechToText = SpeechToText.viaApiKey(_apiKey!);
 
     final config = RecognitionConfig(
       encoding: AudioEncoding.LINEAR16,
