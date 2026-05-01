@@ -10,5 +10,8 @@ linux/
 macos/
 windows/
 test/
-# Ensure build/web is UPLOADED
-!build/web
+# Exclude huge build dirs but KEEP web
+build/android/
+build/ios/
+build/app/
+# KEEP build/web

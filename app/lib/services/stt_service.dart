@@ -4,8 +4,7 @@ library;
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:google_speech/google_speech.dart';
-import 'package:record/record.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class TranscriptResult {
@@ -21,84 +20,65 @@ class TranscriptResult {
 }
 
 class SttService {
-  final AudioRecorder _recorder = AudioRecorder();
+  final SpeechToText _speech = SpeechToText();
   final String? _apiKey;
-  StreamSubscription<List<int>>? _audioStreamSubscription;
 
   SttService({String? apiKey}) : _apiKey = apiKey;
 
   Future<bool> requestPermission() async {
+    if (kIsWeb) return true; // Web handles permissions natively when recording starts
     final status = await Permission.microphone.request();
     return status.isGranted;
   }
 
-  /// Streams audio to Cloud STT v2 and provides real-time transcript updates.
+  /// Streams audio using native/browser STT and provides real-time transcript updates.
   Future<TranscriptResult> recordAndTranscribe({
     int durationSeconds = 6,
     void Function(String partial)? onInterim,
   }) async {
-    if (_apiKey == null || _apiKey!.isEmpty) {
-      return _mockStreaming(durationSeconds, onInterim);
-    }
-
     final hasPermission = await requestPermission();
     if (!hasPermission) throw Exception('Microphone permission denied');
 
-    final speechToText = SpeechToText.viaApiKey(_apiKey!);
-
-    final config = RecognitionConfig(
-      encoding: AudioEncoding.LINEAR16,
-      model: RecognitionModel.latest_short,
-      enableAutomaticPunctuation: true,
-      sampleRateHertz: 16000,
-      languageCode: 'en-US',
+    bool available = await _speech.initialize(
+      onStatus: (val) => debugPrint('[STT Status] $val'),
+      onError: (val) => debugPrint('[STT Error] $val'),
     );
 
-    final streamingConfig = StreamingRecognitionConfig(
-      config: config,
-      interimResults: true,
-    );
-
-    final audioStream = await _recorder.startStream(
-      const RecordConfig(
-        encoder: AudioEncoder.pcm16bits,
-        sampleRate: 16000,
-        numChannels: 1,
-      ),
-    );
-
-    final responseStream = speechToText.streamingRecognize(
-      streamingConfig,
-      audioStream.map((data) => data as List<int>),
-    );
+    if (!available) {
+      debugPrint('[STT Error] Speech recognition not available');
+      return _mockStreaming(durationSeconds, onInterim);
+    }
 
     String finalTranscript = '';
     final completer = Completer<TranscriptResult>();
 
-    responseStream.listen((data) {
-      for (var result in data.results) {
-        final transcript = result.alternatives.first.transcript;
-        if (result.isFinal) {
-          finalTranscript = transcript;
-          onInterim?.call(finalTranscript);
-        } else {
-          onInterim?.call('$finalTranscript $transcript'.strip());
+    await _speech.listen(
+      onResult: (result) {
+        finalTranscript = result.recognizedWords;
+        onInterim?.call(finalTranscript);
+        
+        if (result.finalResult && !completer.isCompleted) {
+          completer.complete(TranscriptResult(
+            text: finalTranscript,
+            confidence: result.confidence > 0 ? result.confidence : 0.9,
+          ));
         }
-      }
-    }, onDone: () {
-      if (!completer.isCompleted) {
-        completer.complete(TranscriptResult(text: finalTranscript, confidence: 0.9));
-      }
-    }, onError: (e) {
-      debugPrint('[STT] Stream Error: $e');
-      if (!completer.isCompleted) completer.complete(_mockTranscript());
-    });
+      },
+      listenFor: Duration(seconds: durationSeconds),
+      pauseFor: const Duration(seconds: 3),
+      partialResults: true,
+      cancelOnError: true,
+      listenMode: ListenMode.dictation,
+    );
 
-    // Stop recording after duration
-    Future.delayed(Duration(seconds: durationSeconds), () async {
-      await _recorder.stop();
+    // Backup timer in case finalResult is never triggered
+    Future.delayed(Duration(seconds: durationSeconds + 1), () async {
+      await _speech.stop();
       if (!completer.isCompleted) {
-        completer.complete(TranscriptResult(text: finalTranscript, confidence: 0.9));
+        completer.complete(TranscriptResult(
+          text: finalTranscript,
+          confidence: 0.9,
+        ));
       }
     });
 
@@ -129,8 +109,7 @@ class SttService {
   }
 
   void dispose() {
-    _audioStreamSubscription?.cancel();
-    _recorder.dispose();
+    _speech.stop();
   }
 }
 

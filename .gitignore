@@ -3,7 +3,16 @@
 *-backup.*
 __pycache__/
 *.pyc
+
+# ── Secrets — NEVER commit these ──────────────────────────────
 .env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# ── Flutter / Dart ────────────────────────────────────────────
 .dart_tool/
 .packages
 .pub/
