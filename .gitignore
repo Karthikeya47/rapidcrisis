@@ -17,3 +17,9 @@ __pycache__/
 .packages
 .pub/
 build/
+
+# Firebase configuration files
+app/lib/firebase_options.dart
+app/android/app/google-services.json
+app/web/firebase-messaging-sw.js
+
