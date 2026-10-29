@@ -1,17 +1,23 @@
 """
-logger.py — BigQuery audit log writer
-Writes every crisis event to crisis_log table with full pipeline trace.
+logger.py — crisis audit log.
+
+Every event is kept in memory for the dashboard and appended to a JSONL
+file (AUDIT_LOG_PATH) so there is a durable record of who was sent where.
 """
-import os
-import uuid
+import json
 import logging
+import os
+import threading
+import uuid
+from collections import deque
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-GCP_PROJECT = os.getenv("GCP_PROJECT", "project-e82fa8f3-3868-42a9-a35")
-BQ_DATASET = os.getenv("BQ_DATASET", "crisis_response")
-BQ_LOG_TABLE = "crisis_log"
+AUDIT_LOG_PATH = os.getenv("AUDIT_LOG_PATH", "crisis_audit.jsonl")
+
+_lock = threading.Lock()
+_events: deque = deque(maxlen=200)
 
 
 def log_crisis_event(
@@ -26,18 +32,13 @@ def log_crisis_event(
     fcm_sent: bool,
     response_ms: int,
     error: str = None,
+    event_id: str = None,
+    extra: dict = None,
 ) -> str:
-    """
-    Write a crisis event row to BigQuery crisis_log table.
-    Returns the event_id (UUID) for tracking.
-    Falls back to local logging if BigQuery is unavailable.
-    """
-    event_id = str(uuid.uuid4())
-    timestamp = datetime.now(timezone.utc).isoformat()
-
+    event_id = event_id or str(uuid.uuid4())
     row = {
         "event_id": event_id,
-        "timestamp": timestamp,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "transcript": transcript,
         "crisis_type": crisis_type,
         "location": location,
@@ -45,33 +46,38 @@ def log_crisis_event(
         "staff_type": staff_type,
         "count_requested": count_requested,
         "protocol_matched": protocol_matched,
-        "staff_dispatched": staff_dispatched,
-        "fcm_sent": fcm_sent,
+        "staff_dispatched": [{k: v for k, v in s.items() if k != "fcm_token"} for s in staff_dispatched],
+        "alerts_sent": fcm_sent,
         "response_ms": response_ms,
         "error": error,
+        "status": "active",
+        **(extra or {}),
     }
-
-    try:
-        _bigquery_insert(row)
-    except Exception as e:
-        logger.warning(f"BigQuery log failed, logging locally: {e}")
-        logger.info(f"[CRISIS LOG] {row}")
-
+    with _lock:
+        _events.appendleft(row)
+        try:
+            with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
+                f.write(json.dumps(row) + "\n")
+        except OSError as e:
+            logger.warning(f"Audit file write failed: {e}")
+    logger.info(f"[CRISIS LOG] {event_id} {crisis_type} @ {location}")
     return event_id
 
 
-def _bigquery_insert(row: dict):
-    import json
-    from google.cloud import bigquery
+def recent_events(limit: int = 20) -> list[dict]:
+    with _lock:
+        return list(_events)[:limit]
 
-    client = bigquery.Client(project=GCP_PROJECT)
-    table_ref = f"{GCP_PROJECT}.{BQ_DATASET}.{BQ_LOG_TABLE}"
 
-    # BigQuery requires JSON column as string
-    bq_row = dict(row)
-    bq_row["staff_dispatched"] = json.dumps(bq_row["staff_dispatched"])
+def mark_resolved(event_id: str) -> bool:
+    with _lock:
+        for e in _events:
+            if e["event_id"] == event_id:
+                e["status"] = "resolved"
+                return True
+        return False
 
-    errors = client.insert_rows_json(table_ref, [bq_row])
-    if errors:
-        raise RuntimeError(f"BigQuery insert errors: {errors}")
-    logger.info(f"Crisis event logged to BigQuery: {row['event_id']}")
+
+def clear_events():
+    with _lock:
+        _events.clear()

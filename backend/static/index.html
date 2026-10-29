@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rapid Crisis Response</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c232c; --line: #2a323d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #76b900; /* NVIDIA green */
+    --crit: #f85149; --high: #f0883e; --med: #d29922; --ok: #3fb950; --info: #58a6ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+           padding: 14px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
+  h1 span { color: var(--crit); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 0 0 10px; }
+  .badge { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .badge.on { color: var(--accent); border-color: var(--accent); }
+  main { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; padding: 16px 20px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 12px 16px; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .talk { display: flex; gap: 14px; align-items: center; }
+  #mic { flex: none; width: 76px; height: 76px; border-radius: 50%; border: 0; cursor: pointer;
+         background: var(--crit); color: #fff; font-size: 30px; box-shadow: 0 0 0 0 rgba(248,81,73,.6); }
+  #mic.live { animation: pulse 1.2s infinite; }
+  @keyframes pulse { to { box-shadow: 0 0 0 18px rgba(248,81,73,0); } }
+  #mic:disabled { background: #444; cursor: not-allowed; }
+  textarea, input { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+                    border-radius: 8px; padding: 10px; font: inherit; }
+  textarea { min-height: 64px; resize: vertical; }
+  .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  button.primary { background: var(--accent); color: #0b0f0a; border: 0; border-radius: 8px; padding: 10px 18px;
+                   font-weight: 700; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 8px;
+                 padding: 8px 12px; cursor: pointer; font: inherit; font-size: 13px; }
+  button.ghost:hover { color: var(--text); border-color: var(--muted); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .chip { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line);
+          color: var(--text); cursor: pointer; }
+  .chip:hover { border-color: var(--info); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .hidden { display: none !important; }
+  /* trace */
+  .trace { list-style: none; margin: 0; padding: 0; }
+  .trace li { position: relative; padding: 0 0 14px 26px; opacity: 0; transform: translateY(4px); transition: all .3s; }
+  .trace li.show { opacity: 1; transform: none; }
+  .trace li::before { content: ""; position: absolute; left: 6px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  .trace li::after { content: ""; position: absolute; left: 10px; top: 18px; bottom: 0; width: 2px; background: var(--line); }
+  .trace li:last-child::after { display: none; }
+  .trace .step { font-weight: 600; }
+  .trace .src { font-size: 11.5px; color: var(--accent); margin-left: 6px; }
+  .trace .src.rules { color: var(--med); }
+  .trace .detail { color: var(--muted); font-size: 13.5px; word-break: break-word; }
+  /* result */
+  .alert-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+  .alert-head .type { font-size: 22px; font-weight: 700; text-transform: capitalize; }
+  .urg { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 6px; text-transform: uppercase; }
+  .urg.critical { background: var(--crit); } .urg.high { background: var(--high); } .urg.medium { background: var(--med); color: #111; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin-top: 10px; font-size: 14px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; }
+  .note { border-radius: 8px; padding: 10px 12px; margin-top: 10px; font-size: 14px; }
+  .note.q { background: rgba(88,166,255,.12); border: 1px solid var(--info); }
+  .note.w { background: rgba(240,136,62,.12); border: 1px solid var(--high); }
+  ol.steps { margin: 6px 0 0; padding-left: 20px; }
+  ol.steps li { margin-bottom: 3px; }
+  .people { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .person { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+  .person b { display: block; font-size: 14px; }
+  /* staff phones */
+  .phones { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .phone { background: var(--panel2); border: 1px solid var(--line); border-radius: 14px; padding: 10px; min-height: 92px; transition: all .3s; }
+  .phone .nm { font-weight: 600; font-size: 13.5px; }
+  .phone .rl { font-size: 12px; color: var(--muted); text-transform: capitalize; }
+  .phone .st { font-size: 11.5px; margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .phone.busy { border-color: var(--crit); background: rgba(248,81,73,.08); }
+  .phone.busy .dot { background: var(--crit); }
+  .phone.off { opacity: .45; } .phone.off .dot { background: var(--muted); }
+  .phone.ring { animation: ring .35s 4; }
+  @keyframes ring { 25% { transform: rotate(-2deg); } 75% { transform: rotate(2deg); } }
+  .phone .msg { font-size: 11.5px; margin-top: 6px; color: var(--text); background: rgba(248,81,73,.15); border-radius: 6px; padding: 4px 6px; }
+  .event { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .event:first-child { border-top: 0; }
+  .event .t { font-weight: 600; text-transform: capitalize; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--muted); border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 16px 24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>●</span> Rapid Crisis Response</h1>
+  <div class="row" style="margin:0; align-items:center">
+    <span id="engine" class="badge">checking engine…</span>
+    <button class="ghost" id="reset">Reset demo</button>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>Report an emergency</h2>
+      <div class="talk">
+        <button id="mic" title="Tap and speak">🎙️</button>
+        <div style="flex:1; min-width:0">
+          <textarea id="text" placeholder="Tap the mic and speak, or type: “Need two trauma surgeons stat, Bay 4, patient coding”"></textarea>
+        </div>
+      </div>
+      <div class="row">
+        <input id="loc" placeholder="Device location (optional), e.g. Emergency Wing" style="flex:1; min-width:180px">
+        <button class="primary" id="send">Dispatch</button>
+      </div>
+      <div class="chips" id="examples"></div>
+      <p class="muted" id="micnote" style="margin:8px 0 0"></p>
+    </div>
+
+    <div class="card hidden" id="traceCard">
+      <h2>Agent at work</h2>
+      <ul class="trace" id="trace"></ul>
+    </div>
+
+    <div class="card hidden" id="resultCard">
+      <div class="alert-head">
+        <div class="type" id="rType"></div>
+        <span class="urg" id="rUrg"></span>
+      </div>
+      <dl class="kv">
+        <dt>Location</dt><dd id="rLoc"></dd>
+        <dt>Alert</dt><dd id="rSum"></dd>
+        <dt>Response</dt><dd id="rMs"></dd>
+      </dl>
+      <div id="rQ"></div>
+      <div id="rW"></div>
+      <h2 style="margin-top:16px">Dispatched</h2>
+      <div class="people" id="rStaff"></div>
+      <h2 style="margin-top:16px" id="rProtoName"></h2>
+      <ol class="steps" id="rSteps"></ol>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>Staff phones (live)</h2>
+      <div class="phones" id="phones"></div>
+    </div>
+    <div class="card">
+      <h2>Active emergencies</h2>
+      <div id="events"><p class="muted">None right now.</p></div>
+    </div>
+  </aside>
+</main>
+<footer>Demo hospital with sample staff. Powered by NVIDIA Nemotron on Nebius Token Factory.</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pretty = (s) => String(s || "").replace(/_/g, " ");
+
+const EXAMPLES = [
+  "Need two trauma surgeons stat, Bay 4, patient coding",
+  "Code blue in ICU room 7, cardiac arrest",
+  "Fire on floor 3, smoke in the corridor, evacuate patients",
+  "Patient not breathing properly, need help fast",
+  "Bus crash, many injured arriving at emergency in 10 minutes",
+];
+EXAMPLES.forEach(t => {
+  const b = document.createElement("button");
+  b.className = "chip"; b.textContent = t;
+  b.onclick = () => { $("text").value = t; send(); };
+  $("examples").appendChild(b);
+});
+
+/* ---------- engine badge ---------- */
+fetch("/health").then(r => r.json()).then(h => {
+  const e = $("engine");
+  if (h.engine === "nemotron") { e.textContent = "Brain: NVIDIA " + h.model.split("/").pop(); e.classList.add("on"); }
+  else { e.textContent = "Brain: offline rules (no API key)"; }
+}).catch(() => { $("engine").textContent = "Server offline"; });
+
+/* ---------- voice input (Web Speech API) ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false;
+if (SR) {
+  rec = new SR();
+  rec.lang = "en-IN"; rec.interimResults = true; rec.continuous = false;
+  rec.onresult = (e) => {
+    let t = "";
+    for (const r of e.results) t += r[0].transcript;
+    $("text").value = t;
+  };
+  rec.onend = () => {
+    listening = false; $("mic").classList.remove("live");
+    if ($("text").value.trim().length > 3) send();
+  };
+  rec.onerror = (e) => { $("micnote").textContent = "Mic error: " + e.error + ". You can type instead."; };
+  $("mic").onclick = () => {
+    if (listening) { rec.stop(); return; }
+    $("text").value = ""; listening = true; $("mic").classList.add("live"); rec.start();
+  };
+  $("micnote").textContent = "Tap the mic, say the emergency, and it dispatches when you stop talking.";
+} else {
+  $("mic").disabled = true;
+  $("micnote").textContent = "Voice input needs Chrome or Edge. Typing works everywhere.";
+}
+
+/* ---------- dispatch ---------- */
+$("send").onclick = send;
+$("text").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+
+async function send() {
+  const transcript = $("text").value.trim();
+  if (transcript.length < 3) return;
+  $("send").disabled = true;
+  $("send").innerHTML = '<span class="spinner"></span> Agent working';
+  $("traceCard").classList.remove("hidden");
+  $("trace").innerHTML = '<li class="show"><span class="step">Thinking…</span></li>';
+  $("resultCard").classList.add("hidden");
+  try {
+    const r = await fetch("/crisis", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({transcript, location_hint: $("loc").value.trim() || null}),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    await showTrace(d.trace || []);
+    showResult(d);
+    refresh(d.staff_dispatched.map(s => s.staff_id));
+  } catch (err) {
+    $("trace").innerHTML = `<li class="show"><span class="step">Error</span><div class="detail">${esc(err.message)}</div></li>`;
+  } finally {
+    $("send").disabled = false; $("send").textContent = "Dispatch";
+  }
+}
+
+async function showTrace(steps) {
+  const ul = $("trace"); ul.innerHTML = "";
+  for (const s of steps) {
+    const li = document.createElement("li");
+    const rules = /rules|safety/.test(s.source);
+    li.innerHTML = `<span class="step">${esc(s.step)}</span><span class="src ${rules ? "rules" : ""}">${esc(s.source)}</span>
+                    <div class="detail">${esc(s.detail)}</div>`;
+    ul.appendChild(li);
+    await new Promise(r => setTimeout(r, 30));
+    li.classList.add("show");
+    await new Promise(r => setTimeout(r, 260));
+  }
+}
+
+function showResult(d) {
+  $("resultCard").classList.remove("hidden");
+  $("rType").textContent = pretty(d.crisis_type);
+  $("rUrg").textContent = d.urgency; $("rUrg").className = "urg " + d.urgency;
+  $("rLoc").textContent = d.location;
+  $("rSum").textContent = d.summary;
+  $("rMs").textContent = `${d.staff_dispatched.length} staff paged in ${(d.response_ms / 1000).toFixed(1)} s · ${d.engine === "nemotron" ? "Nemotron agent" : "offline rules"}`;
+  $("rQ").innerHTML = d.follow_up ? `<div class="note q"><b>Agent asks:</b> ${esc(d.follow_up)}</div>` : "";
+  $("rW").innerHTML = (d.warnings || []).map(w => `<div class="note w">⚠ ${esc(w)}</div>`).join("");
+  $("rStaff").innerHTML = d.staff_dispatched.length
+    ? d.staff_dispatched.map(s => `<div class="person"><b>${esc(s.name)}</b>${esc(pretty(s.role))} · ${esc(s.department)}</div>`).join("")
+    : '<p class="muted">Nobody free for this role.</p>';
+  $("rProtoName").textContent = `Protocol ${d.protocol.code} · ${d.protocol.name}`;
+  $("rSteps").innerHTML = d.protocol.steps.map(s => `<li>${esc(s)}</li>`).join("");
+}
+
+/* ---------- live staff board + events ---------- */
+async function refresh(ringIds = []) {
+  try {
+    const [staff, events] = await Promise.all([fetch("/staff").then(r => r.json()), fetch("/events").then(r => r.json())]);
+    const latest = {};
+    for (const e of events.events) for (const s of e.staff_dispatched) if (!latest[s.staff_id] && e.status === "active") latest[s.staff_id] = e;
+    $("phones").innerHTML = staff.staff.map(s => {
+      const cls = s.status === "busy" ? "busy" : s.status === "off_shift" ? "off" : "";
+      const e = latest[s.staff_id];
+      const label = s.status === "busy" ? "On emergency" : s.status === "off_shift" ? "Off shift" : "Available";
+      return `<div class="phone ${cls} ${ringIds.includes(s.staff_id) ? "ring" : ""}">
+        <div class="nm">${esc(s.name)}</div><div class="rl">${esc(pretty(s.role))} · ${esc(s.department)}</div>
+        <div class="st"><span class="dot"></span>${label}</div>
+        ${e && s.status === "busy" ? `<div class="msg">🚨 ${esc(pretty(e.crisis_type))} · ${esc(e.location)}</div>` : ""}
+      </div>`;
+    }).join("");
+    const active = events.events.filter(e => e.status === "active");
+    $("events").innerHTML = active.length ? active.map(e => `
+      <div class="event"><div><div class="t">${esc(pretty(e.crisis_type))} · ${esc(e.location)}</div>
+      <div class="muted">${e.staff_dispatched.length} staff · ${new Date(e.timestamp).toLocaleTimeString()}</div></div>
+      <button class="ghost" onclick="resolveEvent('${esc(e.event_id)}')">Resolve</button></div>`).join("")
+      : '<p class="muted">None right now.</p>';
+  } catch (_) { /* server restarting */ }
+}
+async function resolveEvent(id) { await fetch(`/events/${id}/resolve`, {method: "POST"}); refresh(); }
+$("reset").onclick = async () => {
+  await fetch("/reset", {method: "POST"});
+  $("traceCard").classList.add("hidden"); $("resultCard").classList.add("hidden"); $("text").value = "";
+  refresh();
+};
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

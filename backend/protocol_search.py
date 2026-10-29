@@ -1,6 +1,6 @@
 """
-protocol_search.py — Vertex AI Vector Search for crisis protocols
-Falls back to keyword-match mock when Vertex AI credentials are unavailable.
+protocol_search.py — hospital crisis protocol library.
+The agent calls this as a tool (lookup_protocol).
 """
 import os
 import logging
@@ -9,13 +9,9 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-GCP_PROJECT = os.getenv("GCP_PROJECT", "serene-bastion-494715-f2")
-GCP_REGION = os.getenv("GCP_REGION", "us-central1")
-VERTEX_INDEX_ENDPOINT = os.getenv("VERTEX_INDEX_ENDPOINT", "")
-VERTEX_DEPLOYED_INDEX_ID = os.getenv("VERTEX_DEPLOYED_INDEX_ID", "")
 
 # ────────────────────────────────────────────────────────────
-# Hardcoded crisis protocols (used for mock mode + seeding)
+# Crisis protocols
 # ────────────────────────────────────────────────────────────
 PROTOCOLS: dict[str, dict] = {
     "trauma": {
@@ -110,61 +106,20 @@ class ProtocolResult:
     code: str
     steps: list[str]
     staff_minimum: dict[str, int]
-    source: str  # "vertex_ai" or "mock"
+    source: str
 
 
-def get_protocol(crisis_type: str, crisis_summary: str) -> ProtocolResult:
-    """
-    Retrieve the crisis protocol.
-    Attempts Vertex AI Vector Search first; falls back to keyword lookup.
-    """
-    if VERTEX_INDEX_ENDPOINT and VERTEX_DEPLOYED_INDEX_ID:
-        try:
-            return _vertex_search(crisis_type, crisis_summary)
-        except Exception as e:
-            logger.warning(f"Vertex AI search failed, using mock: {e}")
-
-    return _mock_protocol(crisis_type)
-
-
-def _mock_protocol(crisis_type: str) -> ProtocolResult:
+def get_protocol(crisis_type: str, crisis_summary: str = "") -> ProtocolResult:
+    """Return the hospital protocol for a crisis type (General protocol if unknown)."""
     data = PROTOCOLS.get(crisis_type, PROTOCOLS["unknown"])
     return ProtocolResult(
         name=data["name"],
         code=data["code"],
         steps=data["steps"],
         staff_minimum=data["staff_minimum"],
-        source="mock",
+        source="protocol_library",
     )
 
 
-def _vertex_search(crisis_type: str, crisis_summary: str) -> ProtocolResult:
-    """
-    Real Vertex AI Vector Search implementation.
-    Embeds the crisis summary and finds the nearest protocol vector.
-    """
-    from google.cloud import aiplatform
-    from vertexai.language_models import TextEmbeddingModel
-
-    aiplatform.init(project=GCP_PROJECT, location=GCP_REGION)
-
-    # Get embedding for crisis description
-    embed_model = TextEmbeddingModel.from_pretrained("textembedding-gecko@003")
-    embeddings = embed_model.get_embeddings([crisis_summary])
-    query_vector = embeddings[0].values
-
-    # Query Vertex AI Matching Engine
-    index_endpoint = aiplatform.MatchingEngineIndexEndpoint(
-        index_endpoint_name=VERTEX_INDEX_ENDPOINT
-    )
-    results = index_endpoint.find_neighbors(
-        deployed_index_id=VERTEX_DEPLOYED_INDEX_ID,
-        queries=[query_vector],
-        num_neighbors=1,
-    )
-
-    if results and results[0]:
-        matched_id = results[0][0].id  # Protocol key
-        return _mock_protocol(matched_id)
-
-    return _mock_protocol(crisis_type)
+# Backwards-compatible alias
+_mock_protocol = get_protocol

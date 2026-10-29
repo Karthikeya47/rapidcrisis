@@ -16,7 +16,7 @@ class TestMockProtocol:
         assert isinstance(result, ProtocolResult)
         assert result.name == "Mass Trauma Protocol"
         assert result.code == "MTP-01"
-        assert result.source == "mock"
+        assert result.source == "protocol_library"
         assert len(result.steps) > 0
 
     def test_cardiac_arrest_protocol(self):
@@ -62,11 +62,11 @@ class TestMockProtocol:
 
 
 class TestGetProtocol:
-    def test_get_protocol_without_vertex_ai(self):
+    def test_get_protocol_library(self):
         """Without Vertex AI config, should fall back to mock."""
         result = get_protocol("trauma", "2 trauma surgeons needed urgently")
         assert isinstance(result, ProtocolResult)
-        assert result.source == "mock"
+        assert result.source == "protocol_library"
         assert result.code == "MTP-01"
 
     def test_get_protocol_cardiac(self):

@@ -1,32 +1,42 @@
 """
-staff_finder.py — Query BigQuery/Cloud SQL for on-shift staff
-Returns matched staff sorted by role relevance.
+staff_finder.py — on-shift staff roster with live availability.
+
+Staff who are dispatched to an emergency are marked busy, so the agent
+never sends the same person to two emergencies at once. Resolving an
+event frees them again.
 """
-import os
+from __future__ import annotations
+
 import logging
+import threading
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-GCP_PROJECT = os.getenv("GCP_PROJECT", "project-e82fa8f3-3868-42a9-a35")
-BQ_DATASET = os.getenv("BQ_DATASET", "crisis_response")
-BQ_TABLE = "staff_schedules"
-
-# ────────────────────────────────────────────────────────────
-# Mock in-memory staff pool (for local dev without BigQuery)
-# ────────────────────────────────────────────────────────────
-MOCK_STAFF = [
-    {"staff_id": "S001", "name": "Dr. Arjun Mehta",    "role": "trauma_surgeon",    "department": "ER",  "fcm_token": "mock_token_S001", "on_shift": True},
-    {"staff_id": "S002", "name": "Dr. Priya Sharma",   "role": "trauma_surgeon",    "department": "OR",  "fcm_token": "mock_token_S002", "on_shift": True},
-    {"staff_id": "S003", "name": "Dr. Ravi Kumar",     "role": "cardiologist",      "department": "ICU", "fcm_token": "mock_token_S003", "on_shift": True},
-    {"staff_id": "S004", "name": "Nurse Lakshmi Nair", "role": "nurse",             "department": "ER",  "fcm_token": "mock_token_S004", "on_shift": True},
-    {"staff_id": "S005", "name": "Nurse Deepa Rao",    "role": "nurse",             "department": "ICU", "fcm_token": "mock_token_S005", "on_shift": True},
-    {"staff_id": "S006", "name": "Dr. Suresh Iyer",    "role": "anesthesiologist",  "department": "OR",  "fcm_token": "mock_token_S006", "on_shift": True},
-    {"staff_id": "S007", "name": "Dr. Meena Pillai",   "role": "icu_doctor",        "department": "ICU", "fcm_token": "mock_token_S007", "on_shift": True},
-    {"staff_id": "S008", "name": "Paramedic Arun Das", "role": "paramedic",         "department": "ER",  "fcm_token": "mock_token_S008", "on_shift": True},
+ROLES = [
+    "trauma_surgeon", "cardiologist", "anesthesiologist", "icu_doctor",
+    "general_doctor", "nurse", "paramedic",
 ]
+
+# Demo roster (a real deployment would load this from the hospital's shift system)
+MOCK_STAFF = [
+    {"staff_id": "S001", "name": "Dr. Arjun Mehta",     "role": "trauma_surgeon",   "department": "ER",  "fcm_token": "mock_token_S001", "on_shift": True},
+    {"staff_id": "S002", "name": "Dr. Priya Sharma",    "role": "trauma_surgeon",   "department": "OR",  "fcm_token": "mock_token_S002", "on_shift": True},
+    {"staff_id": "S003", "name": "Dr. Ravi Kumar",      "role": "cardiologist",     "department": "ICU", "fcm_token": "mock_token_S003", "on_shift": True},
+    {"staff_id": "S004", "name": "Nurse Lakshmi Nair",  "role": "nurse",            "department": "ER",  "fcm_token": "mock_token_S004", "on_shift": True},
+    {"staff_id": "S005", "name": "Nurse Deepa Rao",     "role": "nurse",            "department": "ICU", "fcm_token": "mock_token_S005", "on_shift": True},
+    {"staff_id": "S006", "name": "Dr. Suresh Iyer",     "role": "anesthesiologist", "department": "OR",  "fcm_token": "mock_token_S006", "on_shift": True},
+    {"staff_id": "S007", "name": "Dr. Meena Pillai",    "role": "icu_doctor",       "department": "ICU", "fcm_token": "mock_token_S007", "on_shift": True},
+    {"staff_id": "S008", "name": "Paramedic Arun Das",  "role": "paramedic",        "department": "ER",  "fcm_token": "mock_token_S008", "on_shift": True},
+    {"staff_id": "S009", "name": "Dr. Kavya Reddy",     "role": "general_doctor",   "department": "OPD", "fcm_token": "mock_token_S009", "on_shift": True},
+    {"staff_id": "S010", "name": "Nurse Joseph Thomas", "role": "nurse",            "department": "Ward","fcm_token": "mock_token_S010", "on_shift": True},
+    {"staff_id": "S011", "name": "Paramedic Neha Singh","role": "paramedic",        "department": "ER",  "fcm_token": "mock_token_S011", "on_shift": True},
+    {"staff_id": "S012", "name": "Dr. Farhan Ali",      "role": "cardiologist",     "department": "CCU", "fcm_token": "mock_token_S012", "on_shift": False},
+]
+
+_lock = threading.Lock()
+_busy: dict[str, str] = {}   # staff_id -> event_id
 
 
 @dataclass
@@ -46,97 +56,63 @@ class StaffMember:
             "fcm_token": self.fcm_token,
         }
 
-
-def find_available_staff(staff_type: str, count: int) -> list[StaffMember]:
-    """
-    Find on-shift staff matching the required role.
-    Cascade order: Cloud SQL → BigQuery → Mock data.
-    Cloud SQL = real-time transactional (shift check-ins).
-    BigQuery  = analytics-grade scheduled queries.
-    Mock      = local dev without any GCP credentials.
-    """
-    # ── Try Cloud SQL first (real-time staff availability) ────
-    try:
-        from cloud_sql_staff import find_staff_cloudsql, is_cloudsql_configured
-        if is_cloudsql_configured():
-            staff = find_staff_cloudsql(staff_type, count)
-            if staff:
-                logger.info(f"Staff sourced from Cloud SQL: {[s.name for s in staff]}")
-                return staff
-    except Exception as e:
-        logger.warning(f"Cloud SQL unavailable: {e}")
-
-    # ── Try BigQuery second ──────────────────────────────────
-    try:
-        return _bigquery_find(staff_type, count)
-    except Exception as e:
-        logger.warning(f"BigQuery unavailable, using mock staff: {e}")
-
-    # ── Fallback to mock data ────────────────────────────────
-    return _mock_find(staff_type, count)
+    def public_dict(self) -> dict:
+        d = self.to_dict()
+        d.pop("fcm_token")
+        return d
 
 
-def _bigquery_find(staff_type: str, count: int) -> list[StaffMember]:
-    from google.cloud import bigquery
-
-    client = bigquery.Client(project=GCP_PROJECT)
-    now = datetime.now(timezone.utc).isoformat()
-
-    query = f"""
-        SELECT staff_id, name, role, department, fcm_token
-        FROM `{GCP_PROJECT}.{BQ_DATASET}.{BQ_TABLE}`
-        WHERE on_shift = TRUE
-          AND role = @role
-          AND shift_start <= @now
-          AND shift_end >= @now
-          AND fcm_token IS NOT NULL
-        ORDER BY shift_start ASC
-        LIMIT @limit
-    """
-
-    job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ScalarQueryParameter("role", "STRING", staff_type),
-            bigquery.ScalarQueryParameter("now", "STRING", now),
-            bigquery.ScalarQueryParameter("limit", "INT64", count),
-        ]
-    )
-
-    results = client.query(query, job_config=job_config).result()
-    staff = []
-    for row in results:
-        staff.append(StaffMember(
-            staff_id=row.staff_id,
-            name=row.name,
-            role=row.role,
-            department=row.department,
-            fcm_token=row.fcm_token,
-        ))
-
-    if not staff:
-        # Fallback: find any on-shift general_doctor
-        logger.warning(f"No on-shift {staff_type} found in BigQuery, broadening search")
-        return _mock_find("general_doctor", count)
-
-    return staff
+def _to_member(s: dict) -> StaffMember:
+    return StaffMember(s["staff_id"], s["name"], s["role"], s["department"], s["fcm_token"])
 
 
-def _mock_find(staff_type: str, count: int) -> list[StaffMember]:
-    matched = [
-        s for s in MOCK_STAFF
-        if s["role"] == staff_type and s["on_shift"]
-    ]
-    # Fallback to any on-shift staff
-    if not matched:
-        matched = [s for s in MOCK_STAFF if s["on_shift"]]
+def _is_free(s: dict, exclude: Optional[set] = None) -> bool:
+    return s["on_shift"] and s["staff_id"] not in _busy and s["staff_id"] not in (exclude or set())
 
-    return [
-        StaffMember(
-            staff_id=s["staff_id"],
-            name=s["name"],
-            role=s["role"],
-            department=s["department"],
-            fcm_token=s["fcm_token"],
-        )
-        for s in matched[:count]
-    ]
+
+def find_available_staff(staff_type: str, count: int, exclude: Optional[set] = None) -> list[StaffMember]:
+    """Free, on-shift staff of the role. Unknown roles fall back to any free doctor/nurse."""
+    return _mock_find(staff_type, count, exclude)
+
+
+def _mock_find(staff_type: str, count: int, exclude: Optional[set] = None) -> list[StaffMember]:
+    with _lock:
+        matched = [s for s in MOCK_STAFF if s["role"] == staff_type and _is_free(s, exclude)]
+        if not matched and staff_type not in ROLES:
+            matched = [s for s in MOCK_STAFF if _is_free(s, exclude)]
+        if not matched:
+            logger.warning(f"No free {staff_type} on shift — escalation needed")
+        return [_to_member(s) for s in matched[:max(1, count)]]
+
+
+def mark_busy(staff_ids: list[str], event_id: str):
+    with _lock:
+        for sid in staff_ids:
+            _busy[sid] = event_id
+
+
+def release_event(event_id: str) -> list[str]:
+    with _lock:
+        freed = [sid for sid, ev in _busy.items() if ev == event_id]
+        for sid in freed:
+            del _busy[sid]
+        return freed
+
+
+def reset_availability():
+    with _lock:
+        _busy.clear()
+
+
+def roster(role: Optional[str] = None) -> list[dict]:
+    with _lock:
+        out = []
+        for s in MOCK_STAFF:
+            if role and s["role"] != role:
+                continue
+            status = "off_shift" if not s["on_shift"] else ("busy" if s["staff_id"] in _busy else "available")
+            out.append({
+                "staff_id": s["staff_id"], "name": s["name"], "role": s["role"],
+                "department": s["department"], "status": status, "event_id": _busy.get(s["staff_id"]),
+            })
+        return out

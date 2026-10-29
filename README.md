@@ -1,207 +1,124 @@
 # Rapid Crisis Response 🚨
 
-> Hospital crisis coordination system: Voice → AI → Staff Dispatch
+**Say the emergency. The agent finds the right people and pages them in seconds.**
 
-**GCP Project**: `project-e82fa8f3-3868-42a9-a35`
+Rapid Crisis Response is a voice-first AI dispatch agent for hospitals. A nurse taps the mic and says
+*"Need two trauma surgeons stat, Bay 4, patient coding."* An **NVIDIA Nemotron** agent running on
+**Nebius Token Factory** understands the request, looks up the hospital protocol, finds on-shift staff
+who are not already on another emergency, and pages them — showing every step it took.
 
----
-
-## System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Flutter App (Android)                                      │
-│  ┌─────────────┐   ┌──────────────────────────────────────┐ │
-│  │ Press-to-   │──▶│ Cloud STT v2 (audio → text)          │ │
-│  │ talk button │   └────────────────┬─────────────────────┘ │
-│  └─────────────┘                   │                        │
-└────────────────────────────────────┼────────────────────────┘
-                                     │ POST /crisis
-                                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Cloud Run: crisis-agent                                    │
-│                                                             │
-│  ① Gemini 1.5 Flash ──── parse transcript → intent JSON    │
-│  ② Vertex AI Vector Search ── fetch crisis protocol        │
-│  ③ BigQuery / Cloud SQL ──── find on-shift staff           │
-│  ④ FCM via firebase-admin ── push to staff phones          │
-│  ⑤ BigQuery ──────────────── write audit log               │
-└─────────────────────────────────────────────────────────────┘
-                    │
-                    ▼ FCM push
-         ┌─────────────────────┐
-         │ Staff Android Phone │  🔔 CRISIS ALERT
-         └─────────────────────┘
-```
+Built for the **Nebius × NVIDIA Global AI Hackathon 2026** · Track: **Best Apps and Agents**
 
 ---
 
-## Quick Start
+## The problem
 
-### 1. Backend (local dev)
+In a hospital emergency, minutes decide outcomes. Today a nurse calls the switchboard, the operator
+checks rosters and phones people one by one. Requests get lost, the wrong specialist is paged, or the
+same surgeon is called to two emergencies at once.
+
+## What it does
+
+1. **Hear** — tap the mic and speak (browser speech recognition), or type.
+2. **Understand** — Nemotron extracts the crisis type, location, urgency and who is needed.
+3. **Look up protocol** — the agent calls the `lookup_protocol` tool (trauma, code blue, fire, respiratory, mass casualty, hazmat).
+4. **Find staff** — the agent calls `find_available_staff` for each role. Staff already on an emergency are excluded, so **nobody is double-booked**.
+5. **Complete the team** — if the protocol needs more roles than were asked for (e.g. trauma needs an anesthesiologist), the agent adds them, and the app warns if the full team can't be met.
+6. **Never blocks** — if something important is missing (like the location), it dispatches anyway and asks one follow-up question.
+7. **Page + log** — alerts appear on the staff phones live; every event goes to an audit log. Resolving an event frees the staff.
+
+### Safety by design
+
+- The model can **only dispatch people returned by the tools** — invented staff IDs are dropped.
+- If the model is unreachable or returns bad output, a deterministic rule engine takes over, so the
+  system **keeps working during an outage**. The UI shows which engine handled each request.
+
+## Architecture
+
+```
+Browser (web dashboard)
+  mic → Web Speech API → text
+        │  POST /crisis
+        ▼
+FastAPI backend (Docker, Nebius AI Cloud)
+  ┌──────────────────────────────────────────────────────────────┐
+  │ Nemotron agent loop  (NVIDIA nemotron-3-super-120b-a12b,     │
+  │                       Nebius Token Factory, OpenAI API)      │
+  │   ├─ tool: lookup_protocol(crisis_type)                      │
+  │   └─ tool: find_available_staff(role, count, excluding busy) │
+  │ fallback: rule-based parser (no model needed)                │
+  └──────────────────────────────────────────────────────────────┘
+        │
+        ├─ pager: alert → staff phones panel (live)
+        ├─ availability: staff locked to event until resolved
+        └─ audit log: JSONL
+```
+
+| Part | Tech |
+| --- | --- |
+| AI model | NVIDIA Nemotron 3 Super (`nvidia/nemotron-3-super-120b-a12b`) |
+| Inference | Nebius Token Factory (OpenAI-compatible API, tool calling) |
+| Backend | Python, FastAPI |
+| Frontend | Single-page HTML/JS dashboard, Web Speech API |
+| Hosting | Docker container on Nebius AI Cloud (Serverless endpoint) |
+| Tests | pytest (52 tests, including the agent loop with a scripted model) |
+
+## Run it locally
 
 ```bash
 cd backend
 pip install -r requirements.txt
-
-# Run with mock mode (no GCP credentials needed)
+cp .env.example .env          # paste your NEBIUS_API_KEY (optional — runs on rules without it)
 uvicorn main:app --reload --port 8080
-
-# Test the pipeline
-curl -X POST http://localhost:8080/crisis \
-  -H "Content-Type: application/json" \
-  -d '{"transcript": "Need two trauma surgeons stat, Bay 4, patient coding"}'
 ```
 
-### 2. Run tests
+Open http://localhost:8080 — use **Chrome or Edge** for voice input.
+
+Run the tests:
 
 ```bash
 cd backend
 pip install pytest
-pytest tests/ -v
+pytest tests -q
 ```
 
-### 3. Flutter app
+## API
 
-```bash
-cd app
+| Method | Path | What it does |
+| --- | --- | --- |
+| POST | `/crisis` | `{"transcript": "...", "location_hint": "..."}` → run the agent and dispatch |
+| GET | `/staff` | Roster with live status (`available` / `busy` / `off_shift`) |
+| GET | `/staff/{id}/inbox` | Alerts received by one staff member |
+| GET | `/events` | Recent emergencies |
+| POST | `/events/{id}/resolve` | Close an emergency and free its staff |
+| POST | `/reset` | Reset the demo |
+| GET | `/health` | Status and which engine is active |
 
-# Install Flutter: https://flutter.dev/docs/get-started/install
-flutter pub get
+## Deploy on Nebius
 
-# Run on Android emulator
-flutter run
+See [DEPLOY.md](DEPLOY.md).
 
-# Build APK
-flutter build apk --release
-```
+## What we built during the hackathon
 
----
+This project started before the hackathon as a Google Cloud prototype (Flutter app + Gemini 1.5 Flash + BigQuery/Vertex AI).
+That version no longer worked: Gemini 1.5 Flash was retired and the fallback path crashed. The original code is kept in
+[`legacy/`](legacy/) for reference. During the hackathon we:
 
-## Environment Variables (backend)
+- **Replaced the AI brain** with NVIDIA Nemotron 3 Super on Nebius Token Factory, as a real multi-step tool-calling agent.
+- **Fixed the crash** — rebuilt the offline fallback so the app never goes down if the model is unavailable.
+- **Added no-double-booking** — staff are locked to an emergency until it is resolved.
+- **Added protocol-aware team completion** and warnings when a full team isn't available.
+- **Added follow-up questions** when key details (like location) are missing.
+- **Built a new web dashboard** — voice input, live "agent at work" trace, staff phones panel, active emergencies.
+- **Removed the Google Cloud dependency** so it runs anywhere as one Docker container, deployed on Nebius.
+- **Rewrote and extended the tests** (52 passing), added CI and an MIT license.
 
-| Variable | Description | Default |
-|---|---|---|
-| `GCP_PROJECT` | GCP project ID | `project-e82fa8f3-3868-42a9-a35` |
-| `GCP_REGION` | GCP region | `us-central1` |
-| `BQ_DATASET` | BigQuery dataset | `crisis_response` |
-| `GOOGLE_API_KEY` | Gemini API key | *(mock if absent)* |
-| `FIREBASE_CREDENTIALS` | Path to Firebase service account JSON | *(mock if absent)* |
-| `VERTEX_INDEX_ENDPOINT` | Vertex AI Matching Engine endpoint | *(mock if absent)* |
-| `VERTEX_DEPLOYED_INDEX_ID` | Deployed index ID | *(mock if absent)* |
+## Limitations
 
----
+- Uses a sample hospital roster and protocol library; a real deployment would connect to the hospital's shift and paging systems.
+- Paging is shown in the dashboard's staff panel, not sent as real phone push notifications.
+- This is a coordination aid, not a medical device; clinical decisions stay with clinicians.
 
-## Deploy to Cloud Run
+## License
 
-```bash
-cd infra
-
-# Prerequisites: gcloud CLI installed + authenticated
-gcloud auth login
-gcloud config set project project-e82fa8f3-3868-42a9-a35
-
-# Deploy (enables APIs, builds, deploys)
-bash deploy.sh
-```
-
-After deployment, update `_backendBaseUrl` in:
-`app/lib/services/crisis_agent_service.dart`
-
----
-
-## Setup Firebase (FCM)
-
-1. Go to [Firebase Console](https://console.firebase.google.com/) → Add project → link to `project-e82fa8f3-3868-42a9-a35`
-2. Android app: package `com.crisis.response.app`
-3. Download `google-services.json` → place in `app/android/app/`
-4. Enable Firebase Cloud Messaging
-5. Download service account key → set as `FIREBASE_CREDENTIALS` secret
-
----
-
-## Setup BigQuery
-
-```bash
-# Create dataset
-bq mk --dataset project-e82fa8f3-3868-42a9-a35:crisis_response
-
-# Create tables + seed demo staff
-bq query --use_legacy_sql=false < infra/bigquery_schema.sql
-```
-
----
-
-## Setup Vertex AI (optional, for real protocol search)
-
-```bash
-cd infra
-python seed_protocols.py \
-  --project project-e82fa8f3-3868-42a9-a35 \
-  --region us-central1 \
-  --create-index
-```
-
----
-
-## Pipeline Flow
-
-| Step | Component | Action |
-|---|---|---|
-| 1 | Flutter + Cloud STT | Record voice → transcribe to text |
-| 2 | Gemini 1.5 Flash | Extract: crisis type, location, staff needed, urgency |
-| 3 | Vertex AI Vector Search | Match transcript to crisis protocol |
-| 4 | BigQuery | Query on-shift staff by role + shift time |
-| 5 | Cloud Run → FCM | Send high-priority push to matched staff |
-| 6 | BigQuery audit | Log complete event with response time |
-
----
-
-## Mock Mode
-
-The system runs fully without GCP credentials in **mock mode**:
-- STT → returns rotating demo transcripts
-- Gemini → rule-based keyword extraction  
-- Vertex AI → keyword-matched protocol from hardcoded dict
-- BigQuery → in-memory mock staff list
-- FCM → logs to console instead of sending
-
----
-
-## Project Structure
-
-```
-gsolutionchal/
-├── .agent/PRD.md              ← Original product requirements
-├── app/                       ← Flutter Android app
-│   ├── lib/
-│   │   ├── main.dart
-│   │   ├── theme.dart
-│   │   ├── models/crisis_request.dart
-│   │   ├── screens/crisis_screen.dart
-│   │   ├── services/
-│   │   │   ├── stt_service.dart
-│   │   │   ├── crisis_agent_service.dart
-│   │   │   └── notification_service.dart
-│   │   └── widgets/
-│   │       ├── pipeline_status.dart
-│   │       └── dispatch_card.dart
-│   ├── android/app/src/main/AndroidManifest.xml
-│   └── pubspec.yaml
-├── backend/                   ← Cloud Run FastAPI backend
-│   ├── main.py
-│   ├── agent.py               ← Gemini 1.5 Flash
-│   ├── protocol_search.py     ← Vertex AI + mock
-│   ├── staff_finder.py        ← BigQuery + mock
-│   ├── dispatcher.py          ← FCM
-│   ├── logger.py              ← BigQuery audit log
-│   ├── requirements.txt
-│   ├── Dockerfile
-│   └── tests/
-│       ├── test_agent.py
-│       └── test_staff_finder.py
-└── infra/
-    ├── bigquery_schema.sql    ← Tables + seed data
-    ├── deploy.sh              ← Cloud Run deploy
-    └── seed_protocols.py      ← Vertex AI seed
-```
+MIT — see [LICENSE](LICENSE).

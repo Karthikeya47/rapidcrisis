@@ -93,13 +93,13 @@ class TestCrisisEndpoint:
             assert "role" in s
             assert "department" in s
 
-    def test_dispatch_mode_is_mock(self, client):
-        """Without Firebase credentials, dispatch mode should be 'mock'."""
+    def test_dispatch_mode_is_in_app(self, client):
+        """Alerts go to the in-app pager."""
         response = client.post("/crisis", json={
             "transcript": "Need nurse in Room 101"
         })
         assert response.status_code == 200
-        assert response.json()["dispatch_mode"] == "mock"
+        assert response.json()["dispatch_mode"] == "in_app"
 
     def test_location_hint_override(self, client):
         response = client.post("/crisis", json={

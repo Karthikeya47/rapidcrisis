@@ -8,3 +8,5 @@ __pycache__/
 .packages
 .pub/
 build/
+google-services.json
+crisis_audit.jsonl

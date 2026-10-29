@@ -1,38 +1,28 @@
 """
-dispatcher.py — Send FCM push notifications to dispatched staff
-Uses firebase-admin SDK; mock mode logs to stdout when credentials unavailable.
+dispatcher.py — deliver crisis alerts to staff.
+
+Alerts go to an in-app pager inbox per staff member; the web dashboard's
+"staff phones" panel polls it, so the demo shows phones lighting up live.
+A real deployment would plug a push/SMS provider into `_deliver`.
 """
-import os
 import logging
+import threading
+from collections import defaultdict, deque
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS", "")
+_lock = threading.Lock()
+_inbox: dict[str, deque] = defaultdict(lambda: deque(maxlen=20))
 
 
 @dataclass
 class DispatchResult:
     success: bool
-    sent_to: list[str]  # List of staff_ids
+    sent_to: list[str]  # staff_ids
     failed: list[str]
-    mode: str  # "fcm" or "mock"
-
-
-def dispatch_alerts(
-    staff_list: list,
-    crisis_type: str,
-    location: str,
-    urgency: str,
-    summary: str,
-) -> DispatchResult:
-    """
-    Send FCM push notifications to all matched staff.
-    """
-    if FIREBASE_CREDENTIALS_PATH and os.path.exists(FIREBASE_CREDENTIALS_PATH):
-        return _fcm_dispatch(staff_list, crisis_type, location, urgency, summary)
-    else:
-        return _mock_dispatch(staff_list, crisis_type, location, urgency, summary)
+    mode: str           # "in_app"
 
 
 def _build_notification_data(crisis_type: str, location: str, urgency: str, summary: str) -> dict:
@@ -47,75 +37,29 @@ def _build_notification_data(crisis_type: str, location: str, urgency: str, summ
     }
 
 
-def _fcm_dispatch(staff_list, crisis_type, location, urgency, summary) -> DispatchResult:
-    import firebase_admin
-    from firebase_admin import credentials, messaging
+def dispatch_alerts(staff_list: list, crisis_type: str, location: str, urgency: str,
+                    summary: str, event_id: str = None) -> DispatchResult:
+    return _mock_dispatch(staff_list, crisis_type, location, urgency, summary, event_id)
 
-    if not firebase_admin._apps:
-        cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
-        firebase_admin.initialize_app(cred)
 
-    notif_data = _build_notification_data(crisis_type, location, urgency, summary)
+def _mock_dispatch(staff_list, crisis_type, location, urgency, summary, event_id=None) -> DispatchResult:
+    notif = _build_notification_data(crisis_type, location, urgency, summary)
+    notif["event_id"] = event_id
+    notif["sent_at"] = datetime.now(timezone.utc).isoformat()
     sent_to = []
-    failed = []
-
-    for staff in staff_list:
-        if not staff.fcm_token or staff.fcm_token.startswith("mock_"):
-            logger.warning(f"Skipping mock FCM token for {staff.name}")
-            failed.append(staff.staff_id)
-            continue
-        try:
-            message = messaging.Message(
-                notification=messaging.Notification(
-                    title=notif_data["title"],
-                    body=notif_data["body"],
-                ),
-                data={
-                    "crisis_type": crisis_type,
-                    "location": location,
-                    "urgency": urgency,
-                },
-                android=messaging.AndroidConfig(
-                    priority="high",
-                    notification=messaging.AndroidNotification(
-                        sound="crisis_alert",
-                        channel_id="crisis_dispatch",
-                        priority="max",
-                        visibility="public",
-                    ),
-                ),
-                token=staff.fcm_token,
-            )
-            messaging.send(message)
+    with _lock:
+        for staff in staff_list:
+            _inbox[staff.staff_id].appendleft(dict(notif))
+            logger.info(f"[PAGER] → {staff.name} ({staff.role}) | {notif['title']} | {notif['body']}")
             sent_to.append(staff.staff_id)
-            logger.info(f"FCM sent to {staff.name} ({staff.staff_id})")
-        except Exception as e:
-            logger.error(f"FCM failed for {staff.name}: {e}")
-            failed.append(staff.staff_id)
-
-    return DispatchResult(
-        success=len(sent_to) > 0,
-        sent_to=sent_to,
-        failed=failed,
-        mode="fcm",
-    )
+    return DispatchResult(success=True, sent_to=sent_to, failed=[], mode="in_app")
 
 
-def _mock_dispatch(staff_list, crisis_type, location, urgency, summary) -> DispatchResult:
-    """Log-based mock when Firebase credentials are not configured."""
-    notif_data = _build_notification_data(crisis_type, location, urgency, summary)
-    sent_to = []
+def inbox(staff_id: str) -> list[dict]:
+    with _lock:
+        return list(_inbox.get(staff_id, []))
 
-    for staff in staff_list:
-        logger.info(
-            f"[MOCK FCM] → {staff.name} ({staff.role}) | "
-            f"Title: {notif_data['title']} | Body: {notif_data['body']}"
-        )
-        sent_to.append(staff.staff_id)
 
-    return DispatchResult(
-        success=True,
-        sent_to=sent_to,
-        failed=[],
-        mode="mock",
-    )
+def clear_inboxes():
+    with _lock:
+        _inbox.clear()

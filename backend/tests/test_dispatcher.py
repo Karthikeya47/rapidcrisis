@@ -65,7 +65,7 @@ class TestMockDispatch:
         result = _mock_dispatch(mock_staff, "trauma", "Bay 4", "critical", "Test alert")
         assert isinstance(result, DispatchResult)
         assert result.success is True
-        assert result.mode == "mock"
+        assert result.mode == "in_app"
         assert len(result.sent_to) == 2
         assert len(result.failed) == 0
 
@@ -81,8 +81,8 @@ class TestMockDispatch:
 
 
 class TestDispatchAlerts:
-    def test_dispatch_without_firebase_uses_mock(self, mock_staff):
-        """Without FIREBASE_CREDENTIALS, dispatch should use mock mode."""
+    def test_dispatch_uses_in_app_pager(self, mock_staff):
+        """Alerts go to the in-app pager."""
         result = dispatch_alerts(
             staff_list=mock_staff,
             crisis_type="trauma",
@@ -90,6 +90,6 @@ class TestDispatchAlerts:
             urgency="critical",
             summary="2 trauma surgeons needed at Bay 4",
         )
-        assert result.mode == "mock"
+        assert result.mode == "in_app"
         assert result.success is True
         assert len(result.sent_to) == 2
