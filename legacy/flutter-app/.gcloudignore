@@ -1,0 +1,17 @@
+.gcloudignore
+.git
+.gitignore
+.dart_tool/
+.pub/
+.idea/
+android/
+ios/
+linux/
+macos/
+windows/
+test/
+# Exclude huge build dirs but KEEP web
+build/android/
+build/ios/
+build/app/
+# KEEP build/web

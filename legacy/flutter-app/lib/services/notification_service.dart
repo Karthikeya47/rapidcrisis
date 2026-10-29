@@ -27,7 +27,9 @@ class NotificationService {
   /// Initialize FCM — call once from main()
   Future<void> initialize() async {
     // Register background handler
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    if (!kIsWeb) {
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    }
 
     // Request notification permission (Android 13+)
     final settings = await _fcm.requestPermission(
@@ -38,16 +40,22 @@ class NotificationService {
     );
     debugPrint('[FCM] Permission: ${settings.authorizationStatus}');
 
-    // Get device token for this device
-    _deviceToken = await _fcm.getToken();
+    try {
+      // Get device token for this device
+      _deviceToken = await _fcm.getToken(vapidKey: "BPqP9Q3f4K8g");
+    } catch (e) {
+      debugPrint('[FCM] Token Error (Web): $e');
+    }
     debugPrint('[FCM] Device token: $_deviceToken');
 
     // Show notifications while app is in foreground
-    await _fcm.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    if (!kIsWeb) {
+      await _fcm.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    }
 
     // Foreground message listener
     FirebaseMessaging.onMessage.listen((message) {

@@ -10,3 +10,18 @@ __pycache__/
 build/
 google-services.json
 crisis_audit.jsonl
+
+# ── Secrets — NEVER commit these ──────────────────────────────
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+# ── Flutter / Dart ────────────────────────────────────────────
+# Firebase configuration files
+app/lib/firebase_options.dart
+app/android/app/google-services.json
+app/web/firebase-messaging-sw.js
+legacy/flutter-app/lib/firebase_options.dart
+legacy/flutter-app/android/app/google-services.json
+legacy/flutter-app/web/firebase-messaging-sw.js
