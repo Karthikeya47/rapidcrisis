@@ -281,12 +281,13 @@ const modelName = (id) => {
   return m ? `Nemotron 3 ${m[1][0].toUpperCase()}${m[1].slice(1).toLowerCase()}` : String(id || "").split("/").pop();
 };
 
+// Real speech is messy: no keywords, corrections mid-sentence, Hinglish. Keyword rules get these wrong.
 const EXAMPLES = [
-  "Need two trauma surgeons stat, Bay 4, patient coding",
+  "Kid in peds just swallowed a coin, he is turning blue, need someone now",
+  "Two bike accident guys coming in, one bleeding a lot, sorry not bay 4, put them in bay 6",
+  "Do mareez ICU mein, ek ka saans nahi chal raha, jaldi doctor bhejo",
+  "Smell of something burning near the oxygen store on floor 2, people coughing",
   "Code blue in ICU room 7, cardiac arrest",
-  "Fire on floor 3, smoke in the corridor, evacuate patients",
-  "Patient not breathing properly, need help fast",
-  "Bus crash, many injured arriving at emergency in 10 minutes",
 ];
 EXAMPLES.forEach(t => {
   const b = document.createElement("button");

@@ -134,6 +134,34 @@ That version no longer worked: Gemini 1.5 Flash was retired and the fallback pat
 - **Added a Nemotron 3 Ultra second opinion** that reviews every dispatch against hospital-wide capacity, in the background.
 - **Rewrote and extended the tests** (59 passing), added CI and an MIT license.
 
+## Why a model and not keywords
+
+The app ships with a keyword rule engine as an outage fallback, so we compared it with Nemotron 3 Super on
+the messy sentences nurses actually say (these are the dashboard's example buttons):
+
+| Spoken request | Nemotron 3 Super | Keyword rules |
+| --- | --- | --- |
+| "Kid in peds just swallowed a coin, he is turning blue" | Respiratory, Pediatrics, ICU doctor + nurse | Unknown crisis, one general doctor |
+| "...one bleeding a lot, sorry not bay 4, put them in bay 6" | Trauma, **Bay 6**, full trauma team | Trauma, **Bay 4** (wrong bay), one surgeon |
+| "Do mareez ICU mein, ek ka saans nahi chal raha" (Hinglish) | Respiratory, ICU, ICU doctor + nurse | Unknown crisis |
+| "Smell of something burning near the oxygen store on floor 2" | Fire, critical, nurses + paramedics | Fire, one paramedic |
+
+## Feedback on Nebius Token Factory and NVIDIA Nemotron
+
+- **Token Factory was easy to adopt.** It is OpenAI-compatible, so the agent uses the standard `openai` SDK with a
+  different base URL. Tool calling worked with Nemotron 3 Super on the first try, including several parallel tool calls
+  in one reply, which let us dispatch in a single model call.
+- **The model list was what we needed.** `GET /v1/models` exposed Nano, Super and Ultra under one key, so comparing the
+  three on our own task took minutes and drove a measured model choice.
+- **Turning reasoning off is essential for latency.** `chat_template_kwargs: {"enable_thinking": false}` was accepted and
+  kept Super at 2-4 s per dispatch. A short note in the docs on which models support it would help.
+- **Latency varies.** Most Super calls took 2.5-4.5 s, but we saw occasional 14 s calls. For an emergency use case a
+  latency or priority tier would be valuable; we added a deterministic fallback so the app never waits indefinitely.
+- **Model IDs use mixed casing** (`nemotron-3-super-120b-a12b` vs `Nemotron-3-Ultra-550b-a55b`), which is easy to get
+  wrong when switching models by config.
+- **Nemotron 3 Ultra gives genuinely useful reasoning** for the background review, for example noticing that no trauma
+  surgeon would be left for a second trauma and suggesting an off-shift specialist by name.
+
 ## Limitations
 
 - Uses a sample hospital roster and protocol library; a real deployment would connect to the hospital's shift and paging systems.
