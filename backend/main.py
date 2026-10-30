@@ -1,7 +1,8 @@
 """
 main.py — FastAPI server for Rapid Crisis Response.
 
-Pipeline:  voice/text -> Nemotron agent (tool calls: protocol + staff) -> pager alerts -> audit log
+Pipeline:  voice/text -> Nemotron Super agent (tool calls: protocol + staff) -> pager alerts -> audit log
+           then, in the background, Nemotron Ultra reviews the dispatch against the whole hospital
 Also serves the web dashboard at "/".
 """
 import logging
@@ -16,7 +17,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +26,8 @@ from pydantic import BaseModel
 from agent import run_crisis_agent, nemotron_enabled, NEBIUS_MODEL
 from dispatcher import dispatch_alerts, inbox, clear_inboxes
 from logger import log_crisis_event, recent_events, mark_resolved, clear_events
+from review import (NEBIUS_REVIEW_MODEL, build_situation, clear_reviews, complete_review, get_review,
+                    review_enabled, start_review)
 from staff_finder import roster, mark_busy, release_event, reset_availability
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -37,6 +40,8 @@ STATIC_DIR = Path(__file__).parent / "static"
 async def lifespan(app: FastAPI):
     engine = f"NVIDIA {NEBIUS_MODEL} via Nebius Token Factory" if nemotron_enabled() else "offline rules (set NEBIUS_API_KEY)"
     logger.info(f"🚑 Rapid Crisis Response starting — brain: {engine}")
+    if review_enabled():
+        logger.info(f"Dispatch reviews: NVIDIA {NEBIUS_REVIEW_MODEL}")
     if nemotron_enabled():
         from agent import _make_client
         _make_client()  # warm up: import SDK and open the client before the first emergency
@@ -76,6 +81,7 @@ class CrisisResponse(BaseModel):
     reasoning: str = ""
     warnings: list[str] = []
     trace: list[dict] = []
+    review: str = "off"                 # "pending" while Nemotron Ultra reviews, "off" without a model
 
 
 @app.get("/", include_in_schema=False)
@@ -90,11 +96,12 @@ async def health():
         "service": "crisis-response-backend",
         "engine": "nemotron" if nemotron_enabled() else "rules",
         "model": NEBIUS_MODEL if nemotron_enabled() else None,
+        "review_model": NEBIUS_REVIEW_MODEL if review_enabled() else None,
     }
 
 
 @app.post("/crisis", response_model=CrisisResponse)
-async def handle_crisis(req: CrisisRequest):
+async def handle_crisis(req: CrisisRequest, background: BackgroundTasks):
     start = time.time()
     transcript = (req.transcript or "").strip()
     if len(transcript) < 3:
@@ -133,6 +140,16 @@ async def handle_crisis(req: CrisisRequest):
             extra={"engine": ctx.engine, "summary": ctx.summary, "follow_up": ctx.follow_up},
         )
 
+        # Second opinion from Nemotron Ultra, after the response so paging is never delayed
+        review_status = start_review(event_id)
+        if review_status == "pending":
+            event = {"event_id": event_id, "crisis_type": ctx.crisis_type, "location": ctx.location,
+                     "urgency": ctx.urgency, "summary": ctx.summary, "transcript": transcript,
+                     "follow_up": ctx.follow_up}
+            situation = build_situation(event, ctx.protocol, [s.public_dict() for s in ctx.staff_list], warnings,
+                                        roster(), [e for e in recent_events(200) if e["status"] == "active"])
+            background.add_task(complete_review, event_id, situation)
+
         return CrisisResponse(
             event_id=event_id, status="dispatched", crisis_type=ctx.crisis_type, location=ctx.location,
             urgency=ctx.urgency, summary=ctx.summary,
@@ -144,7 +161,7 @@ async def handle_crisis(req: CrisisRequest):
             staff_dispatched=[StaffInfo(**s.public_dict()) for s in ctx.staff_list],
             fcm_sent=dispatch.success, dispatch_mode=dispatch.mode, response_ms=response_ms,
             engine=ctx.engine, follow_up=ctx.follow_up, reasoning=ctx.reasoning,
-            warnings=warnings, trace=ctx.trace,
+            warnings=warnings, trace=ctx.trace, review=review_status,
         )
     except Exception as e:
         logger.exception("Pipeline failed")
@@ -167,6 +184,15 @@ async def events(limit: int = 20):
     return {"events": recent_events(limit)}
 
 
+@app.get("/events/{event_id}/review")
+async def event_review(event_id: str):
+    """Nemotron Ultra's second opinion: status pending | done | failed | off."""
+    r = get_review(event_id)
+    if r is None:
+        raise HTTPException(status_code=404, detail="Unknown event")
+    return {"event_id": event_id, **r}
+
+
 @app.post("/events/{event_id}/resolve")
 async def resolve(event_id: str):
     freed = release_event(event_id)
@@ -181,6 +207,7 @@ async def reset():
     reset_availability()
     clear_events()
     clear_inboxes()
+    clear_reviews()
     return {"status": "reset"}
 
 
