@@ -139,3 +139,13 @@ def test_thinking_toggle_rejected_retries_without_it():
     assert ctx.engine == "nemotron" and ctx.crisis_type == "fire"
     assert agent._thinking_flag_ok is False
     agent._thinking_flag_ok = True
+
+
+def test_staff_taken_by_parallel_dispatch_is_replaced():
+    """If a simultaneous dispatch claimed someone while the model was thinking, page another free person of that role."""
+    from main import _claim_team
+    from staff_finder import claim, find_available_staff
+    team = find_available_staff("nurse", 2)            # agent picks S004, S005
+    claim(["S004"], "parallel-event")                  # ...but S004 is taken meanwhile
+    final = _claim_team(team, "ev")
+    assert {s.staff_id for s in final} == {"S005", "S010"}

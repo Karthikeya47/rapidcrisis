@@ -33,3 +33,31 @@ class TestMockFind:
         staff = _mock_find("trauma_surgeon", 1)
         assert staff[0].fcm_token is not None
         assert len(staff[0].fcm_token) > 0
+
+
+def test_claim_is_atomic_under_concurrency():
+    """Two dispatches claiming the same people at once: each person goes to exactly one event."""
+    import threading
+    from staff_finder import claim
+
+    wanted = ["S001", "S002", "S004", "S005", "S006"]
+    results = {}
+    barrier = threading.Barrier(2)
+
+    def go(ev):
+        barrier.wait()
+        results[ev] = claim(wanted, ev)
+
+    threads = [threading.Thread(target=go, args=(ev,)) for ev in ("A", "B")]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not set(results["A"]) & set(results["B"])
+    assert sorted(results["A"] + results["B"]) == sorted(wanted)
+
+
+def test_claim_skips_busy_and_off_shift():
+    from staff_finder import claim, mark_busy
+    mark_busy(["S001"], "other")
+    assert claim(["S001", "S002", "S012", "S999"], "ev") == ["S002"]  # busy, off shift, unknown are skipped

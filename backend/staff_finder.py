@@ -91,6 +91,20 @@ def mark_busy(staff_ids: list[str], event_id: str):
             _busy[sid] = event_id
 
 
+def claim(staff_ids: list[str], event_id: str) -> list[str]:
+    """Atomically lock the still-free staff to this event and return who was claimed.
+
+    Finding staff and locking them are separate steps, and the model call in between takes
+    seconds, so a simultaneous dispatch may have taken someone meanwhile. They are skipped here.
+    """
+    by_id = {s["staff_id"]: s for s in MOCK_STAFF}
+    with _lock:
+        claimed = [sid for sid in staff_ids if sid in by_id and _is_free(by_id[sid])]
+        for sid in claimed:
+            _busy[sid] = event_id
+        return claimed
+
+
 def release_event(event_id: str) -> list[str]:
     with _lock:
         freed = [sid for sid, ev in _busy.items() if ev == event_id]

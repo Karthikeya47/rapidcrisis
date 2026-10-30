@@ -28,7 +28,7 @@ from dispatcher import dispatch_alerts, inbox, clear_inboxes
 from logger import log_crisis_event, recent_events, mark_resolved, clear_events
 from review import (NEBIUS_REVIEW_MODEL, build_situation, clear_reviews, complete_review, get_review,
                     review_enabled, start_review)
-from staff_finder import roster, mark_busy, release_event, reset_availability
+from staff_finder import claim, find_available_staff, roster, release_event, reset_availability
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -100,8 +100,23 @@ async def health():
     }
 
 
+def _claim_team(team: list, event_id: str) -> list:
+    """Lock the agent's chosen staff to this event. Anyone a simultaneous dispatch took in the
+    meantime is replaced by another free person of the same role, if there is one."""
+    claimed = set(claim([s.staff_id for s in team], event_id))
+    final = [s for s in team if s.staff_id in claimed]
+    for lost in (s for s in team if s.staff_id not in claimed):
+        for sub in find_available_staff(lost.role, 1, exclude=claimed):
+            if claim([sub.staff_id], event_id):
+                claimed.add(sub.staff_id)
+                final.append(sub)
+    return final
+
+
+# Plain def, not async: the model call is blocking, so FastAPI runs this in a worker thread
+# and the dashboard's polling keeps being served while Nemotron thinks.
 @app.post("/crisis", response_model=CrisisResponse)
-async def handle_crisis(req: CrisisRequest, background: BackgroundTasks):
+def handle_crisis(req: CrisisRequest, background: BackgroundTasks):
     start = time.time()
     transcript = (req.transcript or "").strip()
     if len(transcript) < 3:
@@ -113,7 +128,7 @@ async def handle_crisis(req: CrisisRequest, background: BackgroundTasks):
         event_id = str(uuid.uuid4())
 
         # Lock these staff to this event so they are not double-booked
-        mark_busy([s.staff_id for s in ctx.staff_list], event_id)
+        ctx.staff_list = _claim_team(ctx.staff_list, event_id)
         dispatch = dispatch_alerts(ctx.staff_list, ctx.crisis_type, ctx.location, ctx.urgency, ctx.summary, event_id)
         ctx.trace.append({"step": "Dispatch", "detail": f"Paged {len(dispatch.sent_to)} staff",
                           "source": "pager", "t_ms": int((time.time() - start) * 1000)})
