@@ -80,6 +80,11 @@ class Trace:
         })
 
 
+def _label(key) -> str:
+    """Readable form of an internal key for the trace, e.g. trauma_surgeon -> trauma surgeon."""
+    return str(key).replace("_", " ")
+
+
 # ────────────────────────────────────────────────────────────
 # Rule-based parser (offline fallback — never fails)
 # ────────────────────────────────────────────────────────────
@@ -357,7 +362,7 @@ def _run_nemotron_agent(transcript: str, location_hint: Optional[str], trace: Tr
             if tc.function.name == "report_crisis":
                 report = args
                 result = {"ok": True}
-                trace.add("Understand", f"{args.get('crisis_type')}, {args.get('urgency')}, at "
+                trace.add("Understand", f"{_label(args.get('crisis_type'))}, {args.get('urgency')}, at "
                                         f"{args.get('location')}", "tool: report_crisis")
             elif tc.function.name == "lookup_protocol":
                 protocol = get_protocol(args.get("crisis_type", "unknown"), transcript)
@@ -372,7 +377,7 @@ def _run_nemotron_agent(transcript: str, location_hint: Optional[str], trace: Tr
                 result = {"role": role, "requested": count,
                           "available": [s.public_dict() for s in staff]}
                 names = ", ".join(s.name for s in staff) or "none free"
-                trace.add("Staff search", f"{count} x {role}: {names}", "tool: find_available_staff")
+                trace.add("Staff search", f"{count} × {_label(role)}: {names}", "tool: find_available_staff")
             else:
                 result = {"error": f"unknown tool {tc.function.name}"}
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
@@ -425,14 +430,14 @@ def _rules_agent(transcript: str, location_hint: Optional[str], trace: Trace) ->
     intent = _mock_parse(transcript)
     if intent.location == "unknown" and location_hint:
         intent.location = location_hint
-    trace.add("Understand", f"{intent.crisis_type}, {intent.urgency}, at {intent.location}", "rules")
+    trace.add("Understand", f"{_label(intent.crisis_type)}, {intent.urgency}, at {intent.location}", "rules")
 
     protocol = get_protocol(intent.crisis_type, intent.summary)
     trace.add("Protocol", f"{protocol.code} {protocol.name}", "rules")
 
     staff = find_available_staff(intent.staff_type, intent.count)
     names = ", ".join(s.name for s in staff) or "none free"
-    trace.add("Staff search", f"{intent.count} x {intent.staff_type}: {names}", "rules")
+    trace.add("Staff search", f"{intent.count} × {_label(intent.staff_type)}: {names}", "rules")
 
     follow_up = "Where exactly is the emergency?" if intent.location == "unknown" else None
     return CrisisContext(

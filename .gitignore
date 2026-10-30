@@ -25,3 +25,5 @@ app/web/firebase-messaging-sw.js
 legacy/flutter-app/lib/firebase_options.dart
 legacy/flutter-app/android/app/google-services.json
 legacy/flutter-app/web/firebase-messaging-sw.js
+.venv/
+.playwright-mcp/
