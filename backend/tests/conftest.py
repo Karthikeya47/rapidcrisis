@@ -17,6 +17,9 @@ def _fresh_state():
     from dispatcher import clear_inboxes
     from logger import clear_events
     from review import clear_reviews
+    from main import dispatch_limiter, review_limiter
+    dispatch_limiter.reset()
+    review_limiter.reset()
     reset_availability()
     clear_inboxes()
     clear_events()

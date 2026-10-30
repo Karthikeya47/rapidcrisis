@@ -7,6 +7,7 @@ Also serves the web dashboard at "/".
 """
 import logging
 import os
+import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -17,7 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +26,7 @@ from pydantic import BaseModel
 
 from agent import run_crisis_agent, nemotron_enabled, NEBIUS_MODEL
 from dispatcher import dispatch_alerts, inbox, clear_inboxes
+from limits import RateLimiter
 from logger import log_crisis_event, recent_events, mark_resolved, clear_events
 from review import (NEBIUS_REVIEW_MODEL, build_situation, clear_reviews, complete_review, get_review,
                     review_enabled, start_review)
@@ -34,6 +36,20 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+# Public-demo guards: every character and every call is billed on Token Factory.
+MAX_TRANSCRIPT_CHARS = 500
+MAX_LOCATION_CHARS = 100
+TEAM_MARGIN = 2   # people allowed beyond the protocol's minimum team
+dispatch_limiter = RateLimiter(int(os.getenv("DISPATCH_LIMIT_PER_MINUTE", "5")), 60)
+review_limiter = RateLimiter(int(os.getenv("REVIEW_LIMIT_PER_HOUR", "60")), 3600)
+RESET_TOKEN = os.getenv("RESET_TOKEN")  # if set, POST /reset needs header X-Reset-Token
+
+
+def _client_ip(request: Request) -> str:
+    """Caller's address; behind a proxy (Render, Nebius) the first X-Forwarded-For entry."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    return forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
 
 
 @asynccontextmanager
@@ -116,16 +132,28 @@ def _claim_team(team: list, event_id: str) -> list:
 # Plain def, not async: the model call is blocking, so FastAPI runs this in a worker thread
 # and the dashboard's polling keeps being served while Nemotron thinks.
 @app.post("/crisis", response_model=CrisisResponse)
-def handle_crisis(req: CrisisRequest, background: BackgroundTasks):
+def handle_crisis(req: CrisisRequest, request: Request, background: BackgroundTasks):
     start = time.time()
     transcript = (req.transcript or "").strip()
     if len(transcript) < 3:
         raise HTTPException(status_code=400, detail="Transcript too short")
+    if len(transcript) > MAX_TRANSCRIPT_CHARS:
+        raise HTTPException(status_code=400, detail=f"Transcript too long (max {MAX_TRANSCRIPT_CHARS} characters)")
+    if not dispatch_limiter.allow(_client_ip(request)):
+        raise HTTPException(status_code=429, detail="Too many dispatches from this device. Wait a minute")
+    location_hint = (req.location_hint or "").strip()[:MAX_LOCATION_CHARS] or None
 
     logger.info(f"▶ Crisis: '{transcript}'")
     try:
-        ctx = run_crisis_agent(transcript, req.location_hint)
+        ctx = run_crisis_agent(transcript, location_hint)
         event_id = str(uuid.uuid4())
+
+        # A request like "page everyone" must not empty the hospital: cap at the protocol team + a margin
+        cap_note = None
+        team_cap = (sum(ctx.protocol.staff_minimum.values()) if ctx.protocol else 1) + TEAM_MARGIN
+        if len(ctx.staff_list) > team_cap:
+            ctx.staff_list = ctx.staff_list[:team_cap]
+            cap_note = f"Team capped at {team_cap} for this emergency; page more people manually if needed"
 
         # Lock these staff to this event so they are not double-booked
         ctx.staff_list = _claim_team(ctx.staff_list, event_id)
@@ -144,6 +172,8 @@ def handle_crisis(req: CrisisRequest, background: BackgroundTasks):
                 warnings.append(f"Protocol {ctx.protocol.code} full team still needs: {', '.join(missing)}")
         if not ctx.staff_list:
             warnings.insert(0, "No free staff for this role — escalate to the duty manager")
+        if cap_note:
+            warnings.append(cap_note)
 
         response_ms = int((time.time() - start) * 1000)
         log_crisis_event(
@@ -156,7 +186,7 @@ def handle_crisis(req: CrisisRequest, background: BackgroundTasks):
         )
 
         # Second opinion from Nemotron Ultra, after the response so paging is never delayed
-        review_status = start_review(event_id)
+        review_status = start_review(event_id, within_budget=not review_enabled() or review_limiter.allow("all"))
         if review_status == "pending":
             event = {"event_id": event_id, "crisis_type": ctx.crisis_type, "location": ctx.location,
                      "urgency": ctx.urgency, "summary": ctx.summary, "transcript": transcript,
@@ -180,7 +210,8 @@ def handle_crisis(req: CrisisRequest, background: BackgroundTasks):
         )
     except Exception as e:
         logger.exception("Pipeline failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Details stay in the server log; callers get a plain message, not internals
+        raise HTTPException(status_code=500, detail="Dispatch failed on the server") from e
 
 
 @app.get("/staff")
@@ -217,8 +248,13 @@ async def resolve(event_id: str):
 
 
 @app.post("/reset")
-async def reset():
-    """Reset the demo: everyone available, no events, empty pagers."""
+async def reset(x_reset_token: Optional[str] = Header(default=None)):
+    """Reset the demo: everyone available, no events, empty pagers.
+
+    Open by default so the dashboard's "Reset demo" button works. Set RESET_TOKEN to lock it.
+    """
+    if RESET_TOKEN and not secrets.compare_digest(x_reset_token or "", RESET_TOKEN):
+        raise HTTPException(status_code=403, detail="Reset is locked on this server")
     reset_availability()
     clear_events()
     clear_inboxes()

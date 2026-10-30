@@ -46,6 +46,10 @@ on the five demo emergencies through Token Factory:
 - The model can **only dispatch people returned by the tools** — invented staff IDs are dropped.
 - If the model is unreachable or returns bad output, a deterministic rule engine takes over, so the
   system **keeps working during an outage**. The UI shows which engine handled each request.
+- **One request cannot empty the hospital**: a team is capped at the protocol's size plus two, with a warning.
+- **Two emergencies never get the same person**, even when dispatched at the same moment: staff are claimed atomically.
+- **Public-demo guards**: transcripts are capped at 500 characters, each device gets 5 dispatches a minute, and Ultra
+  reviews have an hourly budget (dispatch keeps working when it runs out). All configurable in `.env`.
 
 ## Architecture
 
@@ -109,7 +113,7 @@ pytest tests -q
 | GET | `/staff` | Roster with live status (`available` / `busy` / `off_shift`) |
 | GET | `/staff/{id}/inbox` | Alerts received by one staff member |
 | GET | `/events` | Recent emergencies |
-| GET | `/events/{id}/review` | Nemotron Ultra's second opinion (`pending` / `done` / `failed` / `off`) |
+| GET | `/events/{id}/review` | Nemotron Ultra's second opinion (`pending` / `done` / `failed` / `skipped` / `off`) |
 | POST | `/events/{id}/resolve` | Close an emergency and free its staff |
 | POST | `/reset` | Reset the demo |
 | GET | `/health` | Status and which engine is active |
