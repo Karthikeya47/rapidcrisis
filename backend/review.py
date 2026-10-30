@@ -38,8 +38,10 @@ already follow; focus on gaps, capacity left for the next emergency, and what to
 risk is high if the protocol team is incomplete or the hospital has no cover left for a second
 emergency of this kind."""
 
+MAX_STORED = 200   # same as the event log; older reviews are dropped
+
 _lock = threading.Lock()
-_reviews: dict[str, dict] = {}
+_reviews: dict[str, dict] = {}   # insertion-ordered, oldest first
 _client = None
 
 
@@ -100,11 +102,14 @@ def run_review(situation: dict, client=None) -> dict:
             "model": NEBIUS_REVIEW_MODEL, "review_ms": int((time.time() - t0) * 1000)}
 
 
-def start_review(event_id: str) -> str:
-    """Mark a review as pending (or off when no model is configured). Returns the status."""
-    status = "pending" if review_enabled() else "off"
+def start_review(event_id: str, within_budget: bool = True) -> str:
+    """Record the review's starting status and return it: pending, off (no model configured),
+    or skipped (hourly review budget used up; the dispatch itself is unaffected)."""
+    status = "off" if not review_enabled() else ("pending" if within_budget else "skipped")
     with _lock:
         _reviews[event_id] = {"status": status}
+        while len(_reviews) > MAX_STORED:
+            del _reviews[next(iter(_reviews))]
     return status
 
 
@@ -116,7 +121,8 @@ def complete_review(event_id: str, situation: dict, client=None):
         logger.error(f"Ultra review failed for {event_id}: {e}")
         result = {"status": "failed", "error": type(e).__name__}
     with _lock:
-        _reviews[event_id] = result
+        if event_id in _reviews:   # not if the demo was reset or the entry aged out meanwhile
+            _reviews[event_id] = result
 
 
 def get_review(event_id: str) -> Optional[dict]:
