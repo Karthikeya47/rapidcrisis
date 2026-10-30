@@ -1,6 +1,7 @@
-# Deploying on Nebius
+# Deploying
 
-Two parts: the **model** (Nebius Token Factory) and the **app** (a Docker container on Nebius AI Cloud).
+Two parts: the **model** runs on Nebius Token Factory, and the **app** is one Docker container that can run anywhere.
+The live demo is hosted on **Render**; running it on Nebius AI Cloud is described below as an alternative.
 
 ## 1. Get a Token Factory API key
 
@@ -17,7 +18,19 @@ curl https://api.tokenfactory.nebius.com/v1/chat/completions \
   -d '{"model":"nvidia/nemotron-3-super-120b-a12b","messages":[{"role":"user","content":"Say OK"}]}'
 ```
 
-## 2. Get the container image
+## 2. Run it on Render (live demo)
+
+In Render: **New → Web Service**, connect the GitHub repo, then:
+
+- Root directory: `backend`
+- Runtime: Docker (Render builds `backend/Dockerfile`)
+- Environment variable: `NEBIUS_API_KEY` = your Token Factory key
+- Render sets `PORT` itself; the container already listens on it
+
+Render serves it over HTTPS, so the microphone works in the browser. On the free plan the service sleeps after
+about 15 idle minutes: the first visit afterwards takes up to a minute and starts with a fresh demo state.
+
+## 3. Get the container image (for other hosts)
 
 Pushing to `main` on GitHub runs `.github/workflows/ci.yml`, which runs the tests and publishes:
 
@@ -36,7 +49,7 @@ docker build --platform linux/amd64 -t ghcr.io/<user>/rapidcrisis:latest .
 docker push ghcr.io/<user>/rapidcrisis:latest
 ```
 
-## 3. Run it on Nebius AI Cloud (Serverless endpoint)
+## 4. Alternative: run it on Nebius AI Cloud (Serverless endpoint)
 
 Console: **Serverless AI → Endpoints → Create endpoint**
 
@@ -60,10 +73,10 @@ nebius ai endpoint create \
   --disk-size 20Gi
 ```
 
-When it's running, copy its public HTTPS URL. Open it, check the header badge says
-**"Brain: NVIDIA nemotron-3-super-120b-a12b"**, and try an example.
+When it's running, copy its public HTTPS URL. Open it, check the header says
+**"Nemotron 3 Super dispatches · Ultra reviews"**, and try an example.
 
-## Fallback: a Nebius CPU VM
+## Alternative: a Nebius CPU VM
 
 Create a small CPU VM with a public IP in the Nebius console, then:
 

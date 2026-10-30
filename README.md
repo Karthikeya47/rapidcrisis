@@ -91,7 +91,7 @@ Browser (web dashboard)
   mic → Web Speech API → text
         │  POST /crisis
         ▼
-FastAPI backend (Docker, Nebius AI Cloud)
+FastAPI backend (Docker container, hosted on Render)
   ┌──────────────────────────────────────────────────────────────┐
   │ Nemotron agent loop  (NVIDIA nemotron-3-super-120b-a12b,     │
   │                       Nebius Token Factory, OpenAI API)      │
@@ -116,7 +116,7 @@ FastAPI backend (Docker, Nebius AI Cloud)
 | Inference | Nebius Token Factory (OpenAI-compatible API, tool calling) |
 | Backend | Python, FastAPI |
 | Frontend | Single-page HTML/JS dashboard, Web Speech API |
-| Hosting | Docker container on Nebius AI Cloud (Serverless endpoint) |
+| Hosting | App: Docker container on Render. AI: Nebius Token Factory (all model calls) |
 | Tests | pytest (74 tests, including the agent loop and the review with scripted models) |
 | Evaluation | 40 labelled spoken requests scored across rules, Nano, Super and Ultra (`backend/eval`) |
 
@@ -152,9 +152,10 @@ pytest tests -q
 | POST | `/reset` | Reset the demo |
 | GET | `/health` | Status and which engine is active |
 
-## Deploy on Nebius
+## Deploy
 
-See [DEPLOY.md](DEPLOY.md).
+The live demo runs as one Docker container on Render; every model call goes to Nebius Token Factory.
+See [DEPLOY.md](DEPLOY.md) for Render, plus a Nebius AI Cloud alternative.
 
 ## What we built during the hackathon
 
@@ -168,7 +169,7 @@ That version no longer worked: Gemini 1.5 Flash was retired and the fallback pat
 - **Added protocol-aware team completion** and warnings when a full team isn't available.
 - **Added follow-up questions** when key details (like location) are missing.
 - **Built a new web dashboard** — voice input, live "agent at work" trace, staff phones panel, active emergencies.
-- **Removed the Google Cloud dependency** so it runs anywhere as one Docker container, deployed on Nebius.
+- **Removed the Google Cloud dependency** so it runs anywhere as one Docker container (hosted on Render, AI on Nebius Token Factory).
 - **Added a Nemotron 3 Ultra second opinion** that reviews every dispatch against hospital-wide capacity, in the background.
 - **Rewrote and extended the tests** (74 passing), added CI and an MIT license.
 - **Built a 40-case evaluation set** and measured every Nemotron size on it to choose models by data.
