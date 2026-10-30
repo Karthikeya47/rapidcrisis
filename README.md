@@ -32,14 +32,47 @@ same surgeon is called to two emergencies at once.
 
 ### Why two models
 
-Following the track's guidance (Ultra for serious reasoning, Nano or Super for fast everyday calls), we measured all three
-on the five demo emergencies through Token Factory:
+Following the track's guidance (Ultra for serious reasoning, Nano or Super for fast everyday calls), we built an
+evaluation set of **40 realistic spoken requests** ([`backend/eval/cases.jsonl`](backend/eval/cases.jsonl)): clean
+requests, messy speech with no keywords, mid-sentence corrections, Hinglish, speech-recognition errors and requests
+with no location. Each is labelled with the right crisis type and location. An answer is **fully right** only if the
+crisis type and location are correct *and* the paged team covers every role in that crisis's protocol.
 
-| Model | Dispatch time | Result |
-| --- | --- | --- |
-| Nemotron 3 Nano | ~2 s | Fast, but often skipped protocol roles (e.g. no anesthesiologist for trauma) - not safe for paging |
-| Nemotron 3 Super | 2.6-4.4 s | Complete protocol team every time - **used for dispatch** |
-| Nemotron 3 Ultra | 4.6-16.8 s | Same teams as Super, too slow to page with - **used for the background review**, with reasoning on |
+Results through Nebius Token Factory (same scores on two separate runs; times from the second run):
+
+| Engine | Fully right | Crisis type | Location | Full team | Median time | Slowest |
+| --- | --- | --- | --- | --- | --- | --- |
+| Keyword rules (offline fallback) | **0%** | 58% | 60% | 0% | instant | instant |
+| Nemotron 3 Nano | **15%** | 85% | 85% | 20% | 1.6 s | 2.8 s |
+| Nemotron 3 Super | **85%** | 98% | 88% | 98% | 3.5 s | 6.6 s |
+| Nemotron 3 Ultra | **90%** | 100% | 90% | 100% | 2.0 s | 17.4 s |
+
+Fully right, by kind of request:
+
+| Engine | Clean | No keywords | Correction | Hinglish | Speech errors | No location |
+| --- | --- | --- | --- | --- | --- | --- |
+| Keyword rules | 0% | 0% | 0% | 0% | 0% | 0% |
+| Nemotron 3 Nano | 20% | 10% | 0% | 17% | 20% | 20% |
+| Nemotron 3 Super | 100% | 80% | 100% | 83% | 40% | 100% |
+| Nemotron 3 Ultra | 100% | 90% | 100% | 83% | 60% | 100% |
+
+What we took from it:
+
+- **Nano is not safe for paging**: it recognises the crisis but rarely pages the full protocol team.
+- **Super dispatches.** It is right 85% of the time, and its slowest call (6.6 s) is predictable.
+- **Ultra was the most accurate** (2 more cases out of 40, mostly garbled speech) and often fast, but its slowest call
+  took 17 s, and in an emergency the worst case matters most. It is also the largest and most expensive model, so we use
+  it where its reasoning pays off without anyone waiting: the **background review** of each dispatch, with reasoning on.
+- Keyword rules got crisis type right on clean requests but never paged a full team: fine as an outage fallback, not as the brain.
+
+Rerun it yourself (about 120 model calls, well under $1):
+
+```bash
+cd backend
+python eval/run_eval.py rules
+python eval/run_eval.py nvidia/nemotron-3-super-120b-a12b   # any Token Factory model id
+python eval/run_eval.py --report
+```
 
 ### Safety by design
 
@@ -84,7 +117,8 @@ FastAPI backend (Docker, Nebius AI Cloud)
 | Backend | Python, FastAPI |
 | Frontend | Single-page HTML/JS dashboard, Web Speech API |
 | Hosting | Docker container on Nebius AI Cloud (Serverless endpoint) |
-| Tests | pytest (59 tests, including the agent loop and the review with scripted models) |
+| Tests | pytest (74 tests, including the agent loop and the review with scripted models) |
+| Evaluation | 40 labelled spoken requests scored across rules, Nano, Super and Ultra (`backend/eval`) |
 
 ## Run it locally
 
@@ -136,7 +170,8 @@ That version no longer worked: Gemini 1.5 Flash was retired and the fallback pat
 - **Built a new web dashboard** — voice input, live "agent at work" trace, staff phones panel, active emergencies.
 - **Removed the Google Cloud dependency** so it runs anywhere as one Docker container, deployed on Nebius.
 - **Added a Nemotron 3 Ultra second opinion** that reviews every dispatch against hospital-wide capacity, in the background.
-- **Rewrote and extended the tests** (59 passing), added CI and an MIT license.
+- **Rewrote and extended the tests** (74 passing), added CI and an MIT license.
+- **Built a 40-case evaluation set** and measured every Nemotron size on it to choose models by data.
 
 ## Why a model and not keywords
 

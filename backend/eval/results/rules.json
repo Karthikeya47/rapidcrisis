@@ -1,0 +1,607 @@
+{
+ "engine": "rules",
+ "rows": [
+  {
+   "id": "clean-01",
+   "group": "clean",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "trauma",
+   "got_location": "Bay 4",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-02",
+   "group": "clean",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "cardiac_arrest",
+   "got_location": "ICU",
+   "roles": [
+    "cardiologist"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-03",
+   "group": "clean",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "fire",
+   "got_location": "Floor 3",
+   "roles": [
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-04",
+   "group": "clean",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "chemical_spill",
+   "got_location": "Floor 1",
+   "roles": [
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-05",
+   "group": "clean",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "mass_casualty",
+   "got_location": "ER",
+   "roles": [
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-06",
+   "group": "clean",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "respiratory",
+   "got_location": "Ward 5",
+   "roles": [
+    "icu_doctor"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-07",
+   "group": "clean",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "cardiac_arrest",
+   "got_location": "unknown",
+   "roles": [
+    "cardiologist"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-08",
+   "group": "clean",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "trauma",
+   "got_location": "Emergency Room",
+   "roles": [
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-09",
+   "group": "clean",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "respiratory",
+   "got_location": "Room 12",
+   "roles": [
+    "icu_doctor"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-10",
+   "group": "clean",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "chemical_spill",
+   "got_location": "unknown",
+   "roles": [
+    "paramedic"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-01",
+   "group": "no keywords",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "unknown",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-02",
+   "group": "no keywords",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "Parking Lot",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-03",
+   "group": "no keywords",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "unknown",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-04",
+   "group": "no keywords",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "fire",
+   "got_location": "Floor 2",
+   "roles": [
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-05",
+   "group": "no keywords",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "Bed 9",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-06",
+   "group": "no keywords",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "fire",
+   "got_location": "OT",
+   "roles": [
+    "nurse",
+    "nurse"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-07",
+   "group": "no keywords",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "unknown",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-08",
+   "group": "no keywords",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "unknown",
+   "roles": [
+    "nurse"
+   ],
+   "type": false,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-09",
+   "group": "no keywords",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "unknown",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-10",
+   "group": "no keywords",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "Bay 2",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "fix-01",
+   "group": "correction",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "trauma",
+   "got_location": "Bay 4",
+   "roles": [
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "fix-02",
+   "group": "correction",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "fire",
+   "got_location": "Room 210",
+   "roles": [
+    "paramedic"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "fix-03",
+   "group": "correction",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "cardiac_arrest",
+   "got_location": "Ward 3",
+   "roles": [
+    "cardiologist"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "fix-04",
+   "group": "correction",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "respiratory",
+   "got_location": "Bed 4",
+   "roles": [
+    "icu_doctor"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "hing-01",
+   "group": "hinglish",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "ICU",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "hing-02",
+   "group": "hinglish",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "trauma",
+   "got_location": "Bay 3",
+   "roles": [
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "hing-03",
+   "group": "hinglish",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "Floor 4",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "hing-04",
+   "group": "hinglish",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "Ward 2",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "hing-05",
+   "group": "hinglish",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "chemical_spill",
+   "got_location": "unknown",
+   "roles": [
+    "paramedic"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "hing-06",
+   "group": "hinglish",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "unknown",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "asr-01",
+   "group": "speech errors",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "trauma",
+   "got_location": "Bay For",
+   "roles": [
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "asr-02",
+   "group": "speech errors",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "Room Seven",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "asr-03",
+   "group": "speech errors",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "fire",
+   "got_location": "unknown",
+   "roles": [
+    "paramedic"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "asr-04",
+   "group": "speech errors",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "Ward Six",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "asr-05",
+   "group": "speech errors",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "unknown",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "noloc-01",
+   "group": "no location",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "respiratory",
+   "got_location": "unknown",
+   "roles": [
+    "icu_doctor"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "noloc-02",
+   "group": "no location",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "unknown",
+   "got_location": "unknown",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "noloc-03",
+   "group": "no location",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "fire",
+   "got_location": "unknown",
+   "roles": [
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "noloc-04",
+   "group": "no location",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "trauma",
+   "got_location": "unknown",
+   "roles": [
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "noloc-05",
+   "group": "no location",
+   "ms": 0,
+   "engine_used": "rules",
+   "got_type": "chemical_spill",
+   "got_location": "unknown",
+   "roles": [
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  }
+ ]
+}

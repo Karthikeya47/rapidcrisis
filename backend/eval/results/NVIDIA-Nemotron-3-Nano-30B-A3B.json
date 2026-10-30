@@ -1,0 +1,661 @@
+{
+ "engine": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+ "rows": [
+  {
+   "id": "clean-01",
+   "group": "clean",
+   "ms": 2503,
+   "engine_used": "nemotron",
+   "got_type": "trauma",
+   "got_location": "Bay 4",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-02",
+   "group": "clean",
+   "ms": 1087,
+   "engine_used": "nemotron",
+   "got_type": "cardiac_arrest",
+   "got_location": "ICU room 7",
+   "roles": [
+    "cardiologist",
+    "nurse",
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-03",
+   "group": "clean",
+   "ms": 1650,
+   "engine_used": "nemotron",
+   "got_type": "fire",
+   "got_location": "floor 3",
+   "roles": [
+    "paramedic",
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-04",
+   "group": "clean",
+   "ms": 1473,
+   "engine_used": "nemotron",
+   "got_type": "chemical_spill",
+   "got_location": "floor 1",
+   "roles": [
+    "paramedic",
+    "paramedic",
+    "nurse",
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": true,
+   "all": true
+  },
+  {
+   "id": "clean-05",
+   "group": "clean",
+   "ms": 1211,
+   "engine_used": "nemotron",
+   "got_type": "mass_casualty",
+   "got_location": "ER",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon",
+    "nurse",
+    "nurse",
+    "nurse",
+    "paramedic",
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": true,
+   "all": true
+  },
+  {
+   "id": "clean-06",
+   "group": "clean",
+   "ms": 1514,
+   "engine_used": "nemotron",
+   "got_type": "respiratory",
+   "got_location": "ward 5",
+   "roles": [
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-07",
+   "group": "clean",
+   "ms": 875,
+   "engine_used": "nemotron",
+   "got_type": "cardiac_arrest",
+   "got_location": "cafeteria",
+   "roles": [
+    "cardiologist"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-08",
+   "group": "clean",
+   "ms": 2460,
+   "engine_used": "nemotron",
+   "got_type": "trauma",
+   "got_location": "emergency room",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-09",
+   "group": "clean",
+   "ms": 1829,
+   "engine_used": "nemotron",
+   "got_type": "respiratory",
+   "got_location": "room 12",
+   "roles": [
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "clean-10",
+   "group": "clean",
+   "ms": 1121,
+   "engine_used": "nemotron",
+   "got_type": "respiratory",
+   "got_location": "basement lab",
+   "roles": [
+    "nurse",
+    "nurse"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-01",
+   "group": "no keywords",
+   "ms": 1214,
+   "engine_used": "nemotron",
+   "got_type": "unknown",
+   "got_location": "peds",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-02",
+   "group": "no keywords",
+   "ms": 1733,
+   "engine_used": "nemotron",
+   "got_type": "cardiac_arrest",
+   "got_location": "parking lot",
+   "roles": [
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-03",
+   "group": "no keywords",
+   "ms": 1683,
+   "engine_used": "nemotron",
+   "got_type": "trauma",
+   "got_location": "radiology",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon",
+    "nurse",
+    "nurse",
+    "paramedic",
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-04",
+   "group": "no keywords",
+   "ms": 1770,
+   "engine_used": "nemotron",
+   "got_type": "respiratory",
+   "got_location": "floor 2",
+   "roles": [
+    "icu_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-05",
+   "group": "no keywords",
+   "ms": 1485,
+   "engine_used": "nemotron",
+   "got_type": "cardiac_arrest",
+   "got_location": "unknown",
+   "roles": [
+    "cardiologist",
+    "nurse",
+    "nurse",
+    "paramedic"
+   ],
+   "type": true,
+   "location": false,
+   "team": true,
+   "all": false
+  },
+  {
+   "id": "messy-06",
+   "group": "no keywords",
+   "ms": 1209,
+   "engine_used": "nemotron",
+   "got_type": "chemical_spill",
+   "got_location": "OT 2",
+   "roles": [
+    "paramedic",
+    "paramedic",
+    "nurse",
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": true,
+   "all": true
+  },
+  {
+   "id": "messy-07",
+   "group": "no keywords",
+   "ms": 1237,
+   "engine_used": "nemotron",
+   "got_type": "mass_casualty",
+   "got_location": "outside city",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon",
+    "nurse",
+    "nurse",
+    "nurse",
+    "paramedic",
+    "paramedic"
+   ],
+   "type": true,
+   "location": false,
+   "team": true,
+   "all": false
+  },
+  {
+   "id": "messy-08",
+   "group": "no keywords",
+   "ms": 953,
+   "engine_used": "nemotron",
+   "got_type": "respiratory",
+   "got_location": "nursery",
+   "roles": [
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-09",
+   "group": "no keywords",
+   "ms": 1569,
+   "engine_used": "nemotron",
+   "got_type": "cardiac_arrest",
+   "got_location": "waiting area",
+   "roles": [
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "messy-10",
+   "group": "no keywords",
+   "ms": 1292,
+   "engine_used": "nemotron",
+   "got_type": "trauma",
+   "got_location": "arriving bay 2",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon",
+    "nurse",
+    "nurse",
+    "paramedic",
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "fix-01",
+   "group": "correction",
+   "ms": 2435,
+   "engine_used": "nemotron",
+   "got_type": "trauma",
+   "got_location": "unknown",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "fix-02",
+   "group": "correction",
+   "ms": 1842,
+   "engine_used": "nemotron",
+   "got_type": "fire",
+   "got_location": "room 201",
+   "roles": [
+    "paramedic",
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "fix-03",
+   "group": "correction",
+   "ms": 1375,
+   "engine_used": "nemotron",
+   "got_type": "cardiac_arrest",
+   "got_location": "ward 8",
+   "roles": [
+    "cardiologist"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "fix-04",
+   "group": "correction",
+   "ms": 1575,
+   "engine_used": "nemotron",
+   "got_type": "respiratory",
+   "got_location": "bed 14",
+   "roles": [
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "hing-01",
+   "group": "hinglish",
+   "ms": 936,
+   "engine_used": "nemotron",
+   "got_type": "respiratory",
+   "got_location": "ICU",
+   "roles": [
+    "icu_doctor"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "hing-02",
+   "group": "hinglish",
+   "ms": 1609,
+   "engine_used": "nemotron",
+   "got_type": "trauma",
+   "got_location": "Bay 3",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "hing-03",
+   "group": "hinglish",
+   "ms": 1791,
+   "engine_used": "nemotron",
+   "got_type": "unknown",
+   "got_location": "Floor 4",
+   "roles": [
+    "general_doctor"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "hing-04",
+   "group": "hinglish",
+   "ms": 1708,
+   "engine_used": "nemotron",
+   "got_type": "cardiac_arrest",
+   "got_location": "Ward 2",
+   "roles": [
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "hing-05",
+   "group": "hinglish",
+   "ms": 1249,
+   "engine_used": "nemotron",
+   "got_type": "chemical_spill",
+   "got_location": "lab",
+   "roles": [
+    "paramedic",
+    "paramedic",
+    "nurse",
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": true,
+   "all": true
+  },
+  {
+   "id": "hing-06",
+   "group": "hinglish",
+   "ms": 2076,
+   "engine_used": "nemotron",
+   "got_type": "trauma",
+   "got_location": "highway",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon"
+   ],
+   "type": false,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "asr-01",
+   "group": "speech errors",
+   "ms": 1978,
+   "engine_used": "nemotron",
+   "got_type": "trauma",
+   "got_location": "Bay",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "asr-02",
+   "group": "speech errors",
+   "ms": 1701,
+   "engine_used": "nemotron",
+   "got_type": "unknown",
+   "got_location": "room seven",
+   "roles": [
+    "nurse"
+   ],
+   "type": false,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "asr-03",
+   "group": "speech errors",
+   "ms": 1631,
+   "engine_used": "nemotron",
+   "got_type": "fire",
+   "got_location": "floor three",
+   "roles": [
+    "paramedic",
+    "paramedic",
+    "nurse",
+    "nurse",
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": true,
+   "all": true
+  },
+  {
+   "id": "asr-04",
+   "group": "speech errors",
+   "ms": 2301,
+   "engine_used": "nemotron",
+   "got_type": "respiratory",
+   "got_location": "ward six",
+   "roles": [
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "asr-05",
+   "group": "speech errors",
+   "ms": 2598,
+   "engine_used": "nemotron",
+   "got_type": "mass_casualty",
+   "got_location": "unknown",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": false,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "noloc-01",
+   "group": "no location",
+   "ms": 2236,
+   "engine_used": "nemotron",
+   "got_type": "respiratory",
+   "got_location": "unknown",
+   "roles": [
+    "icu_doctor"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "noloc-02",
+   "group": "no location",
+   "ms": 2106,
+   "engine_used": "nemotron",
+   "got_type": "cardiac_arrest",
+   "got_location": "unknown",
+   "roles": [
+    "cardiologist"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "noloc-03",
+   "group": "no location",
+   "ms": 2839,
+   "engine_used": "nemotron",
+   "got_type": "fire",
+   "got_location": "unknown",
+   "roles": [
+    "paramedic",
+    "paramedic",
+    "nurse",
+    "nurse",
+    "nurse"
+   ],
+   "type": true,
+   "location": true,
+   "team": true,
+   "all": true
+  },
+  {
+   "id": "noloc-04",
+   "group": "no location",
+   "ms": 2330,
+   "engine_used": "nemotron",
+   "got_type": "trauma",
+   "got_location": "unknown",
+   "roles": [
+    "trauma_surgeon",
+    "trauma_surgeon"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  },
+  {
+   "id": "noloc-05",
+   "group": "no location",
+   "ms": 1473,
+   "engine_used": "nemotron",
+   "got_type": "chemical_spill",
+   "got_location": "unknown",
+   "roles": [
+    "paramedic",
+    "paramedic"
+   ],
+   "type": true,
+   "location": true,
+   "team": false,
+   "all": false
+  }
+ ]
+}
