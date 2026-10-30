@@ -1,0 +1,40 @@
+{"id": "clean-01", "group": "clean", "transcript": "Need two trauma surgeons stat, Bay 4, patient coding", "crisis_type": "trauma", "location": ["bay 4"]}
+{"id": "clean-02", "group": "clean", "transcript": "Code blue in ICU room 7, cardiac arrest", "crisis_type": "cardiac_arrest", "location": ["icu room 7", "room 7"]}
+{"id": "clean-03", "group": "clean", "transcript": "Fire on floor 3, smoke in the corridor, evacuate patients", "crisis_type": "fire", "location": ["floor 3"]}
+{"id": "clean-04", "group": "clean", "transcript": "Chemical spill in the lab on floor 1, strong fumes", "crisis_type": "chemical_spill", "location": ["floor 1", "lab"]}
+{"id": "clean-05", "group": "clean", "transcript": "Bus crash, around fifteen injured arriving at the ER in 10 minutes", "crisis_type": "mass_casualty", "location": ["er", "emergency"]}
+{"id": "clean-06", "group": "clean", "transcript": "Patient in ward 5 is struggling to breathe, oxygen saturation dropping", "crisis_type": "respiratory", "location": ["ward 5"]}
+{"id": "clean-07", "group": "clean", "transcript": "Cardiac arrest in the cafeteria, no pulse", "crisis_type": "cardiac_arrest", "location": ["cafeteria"]}
+{"id": "clean-08", "group": "clean", "transcript": "Gunshot wound arriving at the emergency room", "crisis_type": "trauma", "location": ["emergency", "er"]}
+{"id": "clean-09", "group": "clean", "transcript": "Asthma attack in room 12, patient can't breathe", "crisis_type": "respiratory", "location": ["room 12"]}
+{"id": "clean-10", "group": "clean", "transcript": "Gas leak smell in the basement lab, staff feeling dizzy", "crisis_type": "chemical_spill", "location": ["basement"]}
+{"id": "messy-01", "group": "no keywords", "transcript": "Kid in peds just swallowed a coin, he is turning blue, need someone now", "crisis_type": "respiratory", "location": ["peds", "pediatric", "paediatric"]}
+{"id": "messy-02", "group": "no keywords", "transcript": "Guy just collapsed in the parking lot, not moving, I can't feel anything on his wrist", "crisis_type": "cardiac_arrest", "location": ["parking"]}
+{"id": "messy-03", "group": "no keywords", "transcript": "Lady fell down the stairs near radiology, there's blood everywhere", "crisis_type": "trauma", "location": ["radiology", "stairs"]}
+{"id": "messy-04", "group": "no keywords", "transcript": "Smell of something burning near the oxygen store on floor 2, people coughing", "crisis_type": "fire", "location": ["floor 2", "oxygen"]}
+{"id": "messy-05", "group": "no keywords", "transcript": "Old man in bed 9 went grey and stopped responding, monitor is flatlining", "crisis_type": "cardiac_arrest", "location": ["bed 9"]}
+{"id": "messy-06", "group": "no keywords", "transcript": "Something leaked from the cleaning cart in OT 2, eyes burning, two nurses vomiting", "crisis_type": "chemical_spill", "location": ["ot 2", "ot"]}
+{"id": "messy-07", "group": "no keywords", "transcript": "Train derailed outside the city, they are sending us dozens of patients", "crisis_type": "mass_casualty", "location": null}
+{"id": "messy-08", "group": "no keywords", "transcript": "Baby in the nursery isn't pinking up, lips look blue", "crisis_type": "respiratory", "location": ["nursery"]}
+{"id": "messy-09", "group": "no keywords", "transcript": "Man in the waiting area clutching his chest, now he's down and not responding", "crisis_type": "cardiac_arrest", "location": ["waiting"]}
+{"id": "messy-10", "group": "no keywords", "transcript": "Motorbike crash victim, bone sticking out of his leg, arriving bay 2", "crisis_type": "trauma", "location": ["bay 2"]}
+{"id": "fix-01", "group": "correction", "transcript": "Two bike accident guys coming in, one bleeding a lot, sorry not bay 4, put them in bay 6", "crisis_type": "trauma", "location": ["bay 6"]}
+{"id": "fix-02", "group": "correction", "transcript": "Fire in room 210, no wait, it's room 201, smoke coming out", "crisis_type": "fire", "location": ["room 201"]}
+{"id": "fix-03", "group": "correction", "transcript": "Code blue ward 3, correction, ward 8", "crisis_type": "cardiac_arrest", "location": ["ward 8"]}
+{"id": "fix-04", "group": "correction", "transcript": "Patient choking in bed 4, sorry, bed 14", "crisis_type": "respiratory", "location": ["bed 14"]}
+{"id": "hing-01", "group": "hinglish", "transcript": "Do mareez ICU mein, ek ka saans nahi chal raha, jaldi doctor bhejo", "crisis_type": "respiratory", "location": ["icu"]}
+{"id": "hing-02", "group": "hinglish", "transcript": "Bay 3 mein accident case aaya hai, bahut khoon beh raha hai", "crisis_type": "trauma", "location": ["bay 3"]}
+{"id": "hing-03", "group": "hinglish", "transcript": "Floor 4 pe aag lagi hai, dhuan bhar gaya hai", "crisis_type": "fire", "location": ["floor 4"]}
+{"id": "hing-04", "group": "hinglish", "transcript": "Ward 2 mein patient ki dhadkan band ho gayi, CPR shuru karo", "crisis_type": "cardiac_arrest", "location": ["ward 2"]}
+{"id": "hing-05", "group": "hinglish", "transcript": "Lab mein koi chemical gir gaya, sab ki aankhein jal rahi hai", "crisis_type": "chemical_spill", "location": ["lab"]}
+{"id": "hing-06", "group": "hinglish", "transcript": "Highway pe bus palat gayi, bees log emergency mein aa rahe hai", "crisis_type": "mass_casualty", "location": ["emergency", "er"]}
+{"id": "asr-01", "group": "speech errors", "transcript": "need too trauma sir gins at bay for stat", "crisis_type": "trauma", "location": ["bay 4"]}
+{"id": "asr-02", "group": "speech errors", "transcript": "cold blue in I see you room seven", "crisis_type": "cardiac_arrest", "location": ["icu", "room 7"]}
+{"id": "asr-03", "group": "speech errors", "transcript": "fire on flor three smoke every where", "crisis_type": "fire", "location": ["floor 3"]}
+{"id": "asr-04", "group": "speech errors", "transcript": "patient cant brief in ward six help", "crisis_type": "respiratory", "location": ["ward 6"]}
+{"id": "asr-05", "group": "speech errors", "transcript": "mass casual tea multiple vehicle pile up prepare E R", "crisis_type": "mass_casualty", "location": ["er", "emergency"]}
+{"id": "noloc-01", "group": "no location", "transcript": "Patient not breathing properly, need help fast", "crisis_type": "respiratory", "location": null}
+{"id": "noloc-02", "group": "no location", "transcript": "Someone's heart just stopped, hurry", "crisis_type": "cardiac_arrest", "location": null}
+{"id": "noloc-03", "group": "no location", "transcript": "There's a lot of smoke, I think something is on fire", "crisis_type": "fire", "location": null}
+{"id": "noloc-04", "group": "no location", "transcript": "We have a stabbing victim bleeding heavily", "crisis_type": "trauma", "location": null}
+{"id": "noloc-05", "group": "no location", "transcript": "Strong chemical smell spreading, people fainting", "crisis_type": "chemical_spill", "location": null}
