@@ -94,3 +94,48 @@ def test_missing_location_triggers_follow_up():
     c = TestClient(app)
     r = c.post("/crisis", json={"transcript": "Patient not breathing, need help fast"}).json()
     assert r["follow_up"]
+
+
+def test_fast_path_single_model_call():
+    """All tools in one reply -> dispatch without a second model call."""
+    client = FakeClient([
+        _reply(tool_calls=[
+            _tool_call(1, "report_crisis", {"crisis_type": "cardiac_arrest", "location": "ICU Room 7",
+                                            "urgency": "critical", "primary_role": "cardiologist", "count": 1,
+                                            "summary": "Code Blue ICU Room 7", "follow_up_question": ""}),
+            _tool_call(2, "lookup_protocol", {"crisis_type": "cardiac_arrest"}),
+            _tool_call(3, "find_available_staff", {"role": "cardiologist", "count": 1}),
+            _tool_call(4, "find_available_staff", {"role": "nurse", "count": 2}),
+        ]),
+    ])
+    ctx = run_crisis_agent("Code blue ICU room 7", client=client)
+    assert len(client.calls) == 1
+    assert ctx.engine == "nemotron" and ctx.protocol.code == "CB-02"
+    assert ctx.location == "ICU Room 7" and ctx.follow_up is None
+    assert [s.role for s in ctx.staff_list] == ["cardiologist", "nurse", "nurse"]
+    assert client.calls[0]["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
+
+
+def test_thinking_toggle_rejected_retries_without_it():
+    import agent
+
+    class Rejecting(FakeClient):
+        def _create(self, **kwargs):
+            if "extra_body" in kwargs:
+                err = Exception("unknown field chat_template_kwargs")
+                err.status_code = 400
+                raise err
+            return super()._create(**kwargs)
+
+    agent._thinking_flag_ok = True
+    client = Rejecting([
+        _reply(tool_calls=[
+            _tool_call(1, "report_crisis", {"crisis_type": "fire", "location": "Floor 3", "urgency": "critical",
+                                            "primary_role": "paramedic", "count": 2, "summary": "Fire floor 3"}),
+            _tool_call(2, "find_available_staff", {"role": "paramedic", "count": 2}),
+        ]),
+    ])
+    ctx = run_crisis_agent("Fire on floor 3", client=client)
+    assert ctx.engine == "nemotron" and ctx.crisis_type == "fire"
+    assert agent._thinking_flag_ok is False
+    agent._thinking_flag_ok = True

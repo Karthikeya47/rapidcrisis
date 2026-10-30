@@ -37,6 +37,9 @@ STATIC_DIR = Path(__file__).parent / "static"
 async def lifespan(app: FastAPI):
     engine = f"NVIDIA {NEBIUS_MODEL} via Nebius Token Factory" if nemotron_enabled() else "offline rules (set NEBIUS_API_KEY)"
     logger.info(f"🚑 Rapid Crisis Response starting — brain: {engine}")
+    if nemotron_enabled():
+        from agent import _make_client
+        _make_client()  # warm up: import SDK and open the client before the first emergency
     yield
 
 

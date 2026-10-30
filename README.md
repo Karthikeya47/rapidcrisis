@@ -61,7 +61,7 @@ FastAPI backend (Docker, Nebius AI Cloud)
 | Backend | Python, FastAPI |
 | Frontend | Single-page HTML/JS dashboard, Web Speech API |
 | Hosting | Docker container on Nebius AI Cloud (Serverless endpoint) |
-| Tests | pytest (52 tests, including the agent loop with a scripted model) |
+| Tests | pytest (54 tests, including the agent loop with a scripted model) |
 
 ## Run it locally
 
@@ -111,7 +111,7 @@ That version no longer worked: Gemini 1.5 Flash was retired and the fallback pat
 - **Added follow-up questions** when key details (like location) are missing.
 - **Built a new web dashboard** — voice input, live "agent at work" trace, staff phones panel, active emergencies.
 - **Removed the Google Cloud dependency** so it runs anywhere as one Docker container, deployed on Nebius.
-- **Rewrote and extended the tests** (52 passing), added CI and an MIT license.
+- **Rewrote and extended the tests** (54 passing), added CI and an MIT license.
 
 ## Limitations
 

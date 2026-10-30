@@ -187,37 +187,49 @@ def parse_crisis_intent(transcript: str) -> CrisisIntent:
 # ────────────────────────────────────────────────────────────
 # Nemotron tool-calling agent
 # ────────────────────────────────────────────────────────────
+_TEAM_TABLE = "\n".join(
+    f"- {k}: {', '.join(f'{n} {r}' for r, n in v['staff_minimum'].items())}" for k, v in PROTOCOLS.items()
+)
+
 SYSTEM_PROMPT = f"""You are the dispatch agent of a hospital crisis-response system.
 A staff member has spoken a short emergency request (voice transcript, may contain errors).
+Speed matters: lives depend on it. Do NOT deliberate at length.
 
-Your job, using the tools:
-1. Work out the crisis type, location, urgency and who is needed.
-2. Call lookup_protocol for the crisis type to get the hospital protocol and its minimum team.
-3. Call find_available_staff for each role you need. Respect what the speaker asked for;
-   if the protocol's minimum team requires additional critical roles, request those too.
-4. Never invent staff. Only dispatch staff_ids returned by find_available_staff.
+In ONE single reply, call ALL of these tools in parallel:
+  - report_crisis: your reading of the request (type, location, urgency, alert text, follow-up question)
+  - lookup_protocol: the protocol for that crisis type
+  - find_available_staff: once for EACH role needed (the role the speaker asked for, with their
+    count, plus any other roles in the protocol's minimum team below)
 
-Valid crisis types: {", ".join(CRISIS_TYPES)}
+Minimum team per crisis type:
+{_TEAM_TABLE}
+
 Valid roles: {", ".join(ROLES)}
-
-In an emergency you NEVER block on missing information: dispatch with what you know,
-and if something important is missing or ambiguous (e.g. no location), put ONE short
-question in follow_up_question.
-
-When done, reply with ONLY this JSON object, no markdown:
-{{
-  "crisis_type": "<one of the valid crisis types>",
-  "location": "<location or 'unknown'>",
-  "urgency": "critical|high|medium",
-  "primary_role": "<main role requested>",
-  "count": <number of primary_role requested>,
-  "summary": "<one-line alert text for staff phones>",
-  "staff_ids": ["<ids to dispatch>"],
-  "follow_up_question": "<question or null>",
-  "reasoning": "<one sentence: why this team>"
-}}"""
+Never block on missing information: if something important is missing (e.g. no location),
+set follow_up_question to ONE short question; otherwise set it to an empty string."""
 
 TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "report_crisis",
+            "description": "Record your understanding of the emergency.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "crisis_type": {"type": "string", "enum": CRISIS_TYPES},
+                    "location": {"type": "string", "description": "where, or 'unknown'"},
+                    "urgency": {"type": "string", "enum": ["critical", "high", "medium"]},
+                    "primary_role": {"type": "string", "enum": ROLES},
+                    "count": {"type": "integer", "minimum": 1, "maximum": 10},
+                    "summary": {"type": "string", "description": "one-line alert for staff phones"},
+                    "follow_up_question": {"type": "string"},
+                    "reasoning": {"type": "string", "description": "one short sentence: why this team"},
+                },
+                "required": ["crisis_type", "location", "urgency", "primary_role", "count", "summary"],
+            },
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -247,6 +259,10 @@ TOOLS = [
     },
 ]
 
+FINAL_JSON_HINT = """If you have everything, reply with ONLY this JSON (no markdown):
+{"crisis_type": "...", "location": "...", "urgency": "critical|high|medium", "primary_role": "...",
+ "count": 1, "summary": "...", "staff_ids": ["..."], "follow_up_question": "", "reasoning": "..."}"""
+
 
 def _parse_json(text: str) -> dict:
     """Extract the first JSON object from model output (tolerates fences / extra prose)."""
@@ -258,9 +274,43 @@ def _parse_json(text: str) -> dict:
     return json.loads(text[start:end + 1])
 
 
+_client = None
+
+
 def _make_client():
+    """One shared client: reuses the HTTPS connection to Token Factory between requests."""
+    global _client
+    if _client is None:
+        _client = _new_client()
+    return _client
+
+
+def _new_client():
     from openai import OpenAI
-    return OpenAI(base_url=NEBIUS_BASE_URL, api_key=os.environ["NEBIUS_API_KEY"], timeout=45)
+    return OpenAI(base_url=NEBIUS_BASE_URL, api_key=os.environ["NEBIUS_API_KEY"],
+                  timeout=float(os.getenv("NEBIUS_TIMEOUT", "25")), max_retries=0)
+
+
+# Reasoning ("thinking") makes Nemotron much slower. We ask the server to switch it off;
+# if this server doesn't accept the option we remember that and stop sending it.
+_THINKING_OFF = {"chat_template_kwargs": {"enable_thinking": False}}
+_thinking_flag_ok = os.getenv("NEBIUS_DISABLE_THINKING", "1") == "1"
+
+
+def _chat(client, messages):
+    global _thinking_flag_ok
+    kwargs = dict(model=NEBIUS_MODEL, messages=messages, tools=TOOLS, tool_choice="auto",
+                  temperature=0.1, max_tokens=1200)
+    if _thinking_flag_ok:
+        try:
+            return client.chat.completions.create(**kwargs, extra_body=_THINKING_OFF)
+        except Exception as e:  # server rejected the option -> retry plain
+            if getattr(e, "status_code", None) in (400, 422):
+                logger.warning(f"Server rejected thinking toggle, retrying without it: {e}")
+                _thinking_flag_ok = False
+            else:
+                raise
+    return client.chat.completions.create(**kwargs)
 
 
 def _run_nemotron_agent(transcript: str, location_hint: Optional[str], trace: Trace,
@@ -276,14 +326,18 @@ def _run_nemotron_agent(transcript: str, location_hint: Optional[str], trace: Tr
 
     protocol: Optional[ProtocolResult] = None
     found: dict[str, StaffMember] = {}
+    report: Optional[dict] = None
+    data: Optional[dict] = None
+    model_calls = 0
 
     for _turn in range(MAX_AGENT_TURNS):
-        resp = client.chat.completions.create(
-            model=NEBIUS_MODEL, messages=messages, tools=TOOLS,
-            tool_choice="auto", temperature=0.1, max_tokens=4000,
-        )
+        t0 = time.time()
+        resp = _chat(client, messages)
+        model_calls += 1
         msg = resp.choices[0].message
         tool_calls = getattr(msg, "tool_calls", None) or []
+        trace.add("Nemotron", f"model call {model_calls}: {len(tool_calls)} tool call(s) in "
+                              f"{time.time() - t0:.1f}s", f"NVIDIA {NEBIUS_MODEL.split('/')[-1]}")
 
         if not tool_calls:
             data = _parse_json(msg.content)
@@ -300,13 +354,18 @@ def _run_nemotron_agent(transcript: str, location_hint: Optional[str], trace: Tr
         })
         for tc in tool_calls:
             args = json.loads(tc.function.arguments or "{}")
-            if tc.function.name == "lookup_protocol":
+            if tc.function.name == "report_crisis":
+                report = args
+                result = {"ok": True}
+                trace.add("Understand", f"{args.get('crisis_type')}, {args.get('urgency')}, at "
+                                        f"{args.get('location')}", "tool: report_crisis")
+            elif tc.function.name == "lookup_protocol":
                 protocol = get_protocol(args.get("crisis_type", "unknown"), transcript)
                 result = {"name": protocol.name, "code": protocol.code,
                           "steps": protocol.steps, "staff_minimum": protocol.staff_minimum}
                 trace.add("Protocol", f"{protocol.code} {protocol.name}", "tool: lookup_protocol")
             elif tc.function.name == "find_available_staff":
-                role, count = args.get("role", "general_doctor"), int(args.get("count", 1))
+                role, count = args.get("role", "general_doctor"), int(args.get("count", 1) or 1)
                 staff = find_available_staff(role, count, exclude=set(found))
                 for s in staff:
                     found[s.staff_id] = s
@@ -317,6 +376,13 @@ def _run_nemotron_agent(transcript: str, location_hint: Optional[str], trace: Tr
             else:
                 result = {"error": f"unknown tool {tc.function.name}"}
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
+
+        # Fast path: the model already told us everything in one reply — no second model call.
+        if report is not None and any(tc.function.name == "find_available_staff" for tc in tool_calls):
+            data = dict(report, staff_ids=list(found))
+            break
+        if _turn == 0:
+            messages.append({"role": "user", "content": FINAL_JSON_HINT})
     else:
         raise RuntimeError("Agent did not finish within the turn limit")
 
@@ -332,11 +398,11 @@ def _run_nemotron_agent(transcript: str, location_hint: Optional[str], trace: Tr
     if not chosen:
         chosen = find_available_staff(data.get("primary_role", "general_doctor"), int(data.get("count", 1) or 1))
 
-    location = data.get("location") or "unknown"
+    location = str(data.get("location") or "unknown")
     if location.lower() == "unknown" and location_hint:
         location = location_hint
     follow_up = data.get("follow_up_question")
-    if isinstance(follow_up, str) and follow_up.strip().lower() in {"", "null", "none"}:
+    if not isinstance(follow_up, str) or follow_up.strip().lower() in {"", "null", "none"}:
         follow_up = None
 
     return CrisisContext(
@@ -388,10 +454,7 @@ def run_crisis_agent(transcript: str, location_hint: str = None, client=None) ->
 
     if nemotron_enabled() or client is not None:
         try:
-            ctx = _run_nemotron_agent(transcript, location_hint, trace, client=client)
-            ctx.trace.insert(1, {"step": "Understand", "detail": ctx.reasoning or ctx.summary,
-                                 "source": f"NVIDIA {NEBIUS_MODEL.split('/')[-1]}", "t_ms": ctx.trace[-1]["t_ms"]})
-            return ctx
+            return _run_nemotron_agent(transcript, location_hint, trace, client=client)
         except Exception as e:
             logger.error(f"Nemotron agent failed, using rules fallback: {e}")
             trace.add("Fallback", f"Model unavailable ({type(e).__name__}); switched to offline rules", "safety net")

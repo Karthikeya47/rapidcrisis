@@ -89,24 +89,46 @@
   .event .t { font-weight: 600; text-transform: capitalize; }
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--muted); border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; max-width: 1400px; margin: 16px auto 0; padding: 0 20px; }
+  @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0,1fr)); padding: 0 16px; } }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .stat .v { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+  .stat.alert .v { color: var(--crit); } .stat.good .v { color: var(--ok); } .stat.ai .v { color: var(--accent); }
+  .miclabel { font-size: 12px; color: var(--muted); text-align: center; margin-top: 6px; }
+  .trace.pending li:not(.now) { opacity: .3; }
+  .pending li.now::before { animation: blink .8s infinite alternate; }
+  @keyframes blink { to { opacity: .25; } }
+  .timer { float: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+  #resultCard { border-left: 4px solid var(--line); }
+  #resultCard.critical { border-left-color: var(--crit); } #resultCard.high { border-left-color: var(--high); } #resultCard.medium { border-left-color: var(--med); }
+  .speed { display: inline-block; margin-left: 8px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: rgba(118,185,0,.15); color: var(--accent); }
   footer { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 16px 24px; }
 </style>
 </head>
 <body>
 <header>
-  <h1><span>●</span> Rapid Crisis Response</h1>
+  <div><h1><span>●</span> Rapid Crisis Response</h1><div class="sub">City General Hospital · Emergency Command</div></div>
   <div class="row" style="margin:0; align-items:center">
     <span id="engine" class="badge">checking engine…</span>
     <button class="ghost" id="reset">Reset demo</button>
   </div>
 </header>
 
+<div class="stats">
+  <div class="stat good"><div class="v" id="sFree">–</div><div class="l">Staff available</div></div>
+  <div class="stat alert"><div class="v" id="sActive">0</div><div class="l">Active emergencies</div></div>
+  <div class="stat"><div class="v" id="sToday">0</div><div class="l">Dispatched this session</div></div>
+  <div class="stat ai"><div class="v" id="sLast">–</div><div class="l">Last response time</div></div>
+</div>
+
 <main>
   <section>
     <div class="card">
       <h2>Report an emergency</h2>
       <div class="talk">
-        <button id="mic" title="Tap and speak">🎙️</button>
+        <div><button id="mic" title="Tap and speak">🎙️</button><div class="miclabel" id="miclabel">Tap to speak</div></div>
         <div style="flex:1; min-width:0">
           <textarea id="text" placeholder="Tap the mic and speak, or type: “Need two trauma surgeons stat, Bay 4, patient coding”"></textarea>
         </div>
@@ -120,7 +142,7 @@
     </div>
 
     <div class="card hidden" id="traceCard">
-      <h2>Agent at work</h2>
+      <h2>Agent at work <span class="timer" id="timer"></span></h2>
       <ul class="trace" id="trace"></ul>
     </div>
 
@@ -194,13 +216,13 @@ if (SR) {
     $("text").value = t;
   };
   rec.onend = () => {
-    listening = false; $("mic").classList.remove("live");
+    listening = false; $("mic").classList.remove("live"); $("miclabel").textContent = "Tap to speak";
     if ($("text").value.trim().length > 3) send();
   };
   rec.onerror = (e) => { $("micnote").textContent = "Mic error: " + e.error + ". You can type instead."; };
   $("mic").onclick = () => {
     if (listening) { rec.stop(); return; }
-    $("text").value = ""; listening = true; $("mic").classList.add("live"); rec.start();
+    $("text").value = ""; listening = true; $("mic").classList.add("live"); $("miclabel").textContent = "Listening…"; rec.start();
   };
   $("micnote").textContent = "Tap the mic, say the emergency, and it dispatches when you stop talking.";
 } else {
@@ -218,7 +240,7 @@ async function send() {
   $("send").disabled = true;
   $("send").innerHTML = '<span class="spinner"></span> Agent working';
   $("traceCard").classList.remove("hidden");
-  $("trace").innerHTML = '<li class="show"><span class="step">Thinking…</span></li>';
+  startPending();
   $("resultCard").classList.add("hidden");
   try {
     const r = await fetch("/crisis", {
@@ -227,14 +249,36 @@ async function send() {
     });
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
     const d = await r.json();
+    stopPending();
     await showTrace(d.trace || []);
     showResult(d);
     refresh(d.staff_dispatched.map(s => s.staff_id));
   } catch (err) {
+    stopPending();
     $("trace").innerHTML = `<li class="show"><span class="step">Error</span><div class="detail">${esc(err.message)}</div></li>`;
   } finally {
     $("send").disabled = false; $("send").textContent = "Dispatch";
   }
+}
+
+let pendingTimer = null, pendingStart = 0;
+function startPending() {
+  const steps = ["Heard the request", "NVIDIA Nemotron is reading it", "Checking the hospital protocol",
+                 "Finding free staff", "Paging the team"];
+  $("trace").className = "trace pending";
+  $("trace").innerHTML = steps.map((s, i) => `<li class="show ${i === 0 ? "now" : ""}"><span class="step">${s}</span></li>`).join("");
+  pendingStart = performance.now();
+  pendingTimer = setInterval(() => {
+    const t = (performance.now() - pendingStart) / 1000;
+    $("timer").textContent = t.toFixed(1) + " s";
+    const idx = Math.min(steps.length - 1, Math.floor(t / 1.2));
+    [...$("trace").children].forEach((li, i) => li.classList.toggle("now", i <= idx));
+  }, 100);
+}
+function stopPending() {
+  clearInterval(pendingTimer);
+  $("trace").className = "trace";
+  $("timer").textContent = ((performance.now() - pendingStart) / 1000).toFixed(1) + " s";
 }
 
 async function showTrace(steps) {
@@ -253,11 +297,13 @@ async function showTrace(steps) {
 
 function showResult(d) {
   $("resultCard").classList.remove("hidden");
+  $("resultCard").className = "card " + d.urgency;
+  $("sLast").textContent = (d.response_ms / 1000).toFixed(1) + " s";
   $("rType").textContent = pretty(d.crisis_type);
   $("rUrg").textContent = d.urgency; $("rUrg").className = "urg " + d.urgency;
   $("rLoc").textContent = d.location;
   $("rSum").textContent = d.summary;
-  $("rMs").textContent = `${d.staff_dispatched.length} staff paged in ${(d.response_ms / 1000).toFixed(1)} s · ${d.engine === "nemotron" ? "Nemotron agent" : "offline rules"}`;
+  $("rMs").innerHTML = `${d.staff_dispatched.length} staff paged in <b>${(d.response_ms / 1000).toFixed(1)} s</b><span class="speed">${d.engine === "nemotron" ? "NVIDIA Nemotron agent" : "offline rules"}</span>`;
   $("rQ").innerHTML = d.follow_up ? `<div class="note q"><b>Agent asks:</b> ${esc(d.follow_up)}</div>` : "";
   $("rW").innerHTML = (d.warnings || []).map(w => `<div class="note w">⚠ ${esc(w)}</div>`).join("");
   $("rStaff").innerHTML = d.staff_dispatched.length
@@ -284,6 +330,9 @@ async function refresh(ringIds = []) {
       </div>`;
     }).join("");
     const active = events.events.filter(e => e.status === "active");
+    $("sFree").textContent = staff.staff.filter(s => s.status === "available").length;
+    $("sActive").textContent = active.length;
+    $("sToday").textContent = events.events.reduce((n, e) => n + e.staff_dispatched.length, 0);
     $("events").innerHTML = active.length ? active.map(e => `
       <div class="event"><div><div class="t">${esc(pretty(e.crisis_type))} · ${esc(e.location)}</div>
       <div class="muted">${e.staff_dispatched.length} staff · ${new Date(e.timestamp).toLocaleTimeString()}</div></div>
